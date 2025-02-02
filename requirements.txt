@@ -1,5 +1,6 @@
 Django
 python-dotenv
+mongoengine
 
 # Authentication & Security
 pyjwt
@@ -24,3 +25,4 @@ whitenoise
 # Dev & Testing
 django-debug-toolbar
 pytest-django
+
