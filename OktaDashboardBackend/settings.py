@@ -78,15 +78,12 @@ WSGI_APPLICATION = 'OktaDashboardBackend.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
 
-# DATABASES = {
-#     'default': {
-#         'ENGINE': 'djongo',
-#         'NAME': 'okta_dashboard',
-#         'CLIENT': {
-#             'host': os.environ.get('MONGODB_URL', 'mongodb://localhost:27017/okta_dashboard'),
-#         }
-#     }
-# }
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': BASE_DIR / 'db.sqlite3',
+    }
+}
 
 mongoengine.connect(
     db='okta_dashboard',
