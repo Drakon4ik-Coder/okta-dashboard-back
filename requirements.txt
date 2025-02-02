@@ -1,8 +1,5 @@
 Django>=4.2,<5.0
 python-dotenv>=1.0.0
-psycopg2-binary>=2.9.9  # If using PostgreSQL
-mysqlclient>=2.2.0  # If using MySQL
-sqlite3  # Included with Python, no need to install separately
 
 # Authentication & Security
 pyjwt>=2.8.0
@@ -27,7 +24,3 @@ whitenoise>=6.6.0  # For serving static files
 # Dev & Testing
 django-debug-toolbar>=4.2.0
 pytest-django>=4.8.0
-
-# Celery (if using async tasks)
-celery>=5.3.6
-redis>=5.0.1  # If using Redis as a broker
