@@ -1,26 +1,26 @@
-Django>=4.2,<5.0
-python-dotenv>=1.0.0
+Django
+python-dotenv
 
 # Authentication & Security
-pyjwt>=2.8.0
-cryptography>=42.0.0
+pyjwt
+cryptography
 
 # API & Web
-requests>=2.31.0
-djangorestframework>=3.14.0
+requests
+djangorestframework
 
 # Logging & Monitoring
 logging
-sentry-sdk>=1.39.2
+sentry-sdk
 
 # Data Handling & Analysis
-pandas>=2.2.0
-numpy>=1.26.4
+pandas
+numpy
 
 # Deployment & Containerization
-gunicorn>=21.2.0  # If using Gunicorn for deployment
-whitenoise>=6.6.0  # For serving static files
+gunicorn
+whitenoise
 
 # Dev & Testing
-django-debug-toolbar>=4.2.0
-pytest-django>=4.8.0
+django-debug-toolbar
+pytest-django
