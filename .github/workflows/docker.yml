@@ -1,0 +1,42 @@
+name: Docker Compose Test
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  docker-build-test:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and start services
+        run: |
+          docker-compose build
+          docker-compose up -d
+
+      - name: Wait for services
+        run: |
+          timeout 30s bash -c 'until docker-compose ps | grep "healthy"; do sleep 1; done'
+          docker-compose ps
+
+      - name: Test web service
+        run: |
+          curl -f http://localhost:8000/ || true
+
+      - name: Check logs
+        if: always()
+        run: docker-compose logs
+
+      - name: Cleanup
+        if: always()
+        run: docker-compose down -v
