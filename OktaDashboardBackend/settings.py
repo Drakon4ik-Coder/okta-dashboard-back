@@ -10,7 +10,10 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.1/ref/settings/
 """
 
+import os
 from pathlib import Path
+import mongoengine
+
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -82,6 +85,10 @@ DATABASES = {
     }
 }
 
+mongoengine.connect(
+    db='okta_dashboard',
+    host=os.environ.get('MONGODB_URL', 'mongodb://localhost:27017/okta_dashboard')
+)
 
 # Password validation
 # https://docs.djangoproject.com/en/5.1/ref/settings/#auth-password-validators
