@@ -21,13 +21,13 @@ jobs:
 
       - name: Build and start services
         run: |
-          docker-compose build
-          docker-compose up -d
+          docker compose build
+          docker compose up -d
 
       - name: Wait for services
         run: |
-          timeout 30s bash -c 'until docker-compose ps | grep "healthy"; do sleep 1; done'
-          docker-compose ps
+          timeout 30s bash -c 'until docker compose ps | grep "healthy"; do sleep 1; done'
+          docker compose ps
 
       - name: Test web service
         run: |
@@ -35,8 +35,8 @@ jobs:
 
       - name: Check logs
         if: always()
-        run: docker-compose logs
+        run: docker compose logs
 
       - name: Cleanup
         if: always()
-        run: docker-compose down -v
+        run: docker compose down -v
