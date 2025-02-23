@@ -1,6 +1,8 @@
 Django
 python-dotenv
+pymongo
 mongoengine
+dnspython
 
 # Authentication & Security
 pyjwt

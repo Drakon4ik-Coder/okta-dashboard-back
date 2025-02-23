@@ -85,10 +85,16 @@ DATABASES = {
     }
 }
 
+MONGODB_SETTINGS = {
+    'db': 'okta_dashboard',
+    'host': os.environ.get('MONGODB_URL', 'mongodb://localhost:27017/okta_dashboard')
+}
+
 mongoengine.connect(
-    db='okta_dashboard',
-    host=os.environ.get('MONGODB_URL', 'mongodb://localhost:27017/okta_dashboard')
+    db=MONGODB_SETTINGS['db'],
+    host=MONGODB_SETTINGS['host']
 )
+
 
 # Password validation
 # https://docs.djangoproject.com/en/5.1/ref/settings/#auth-password-validators
