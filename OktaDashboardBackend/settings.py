@@ -13,6 +13,8 @@ https://docs.djangoproject.com/en/5.1/ref/settings/
 import os
 from pathlib import Path
 import mongoengine
+from pythonjsonlogger import jsonlogger
+
 
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -142,3 +144,47 @@ STATIC_URL = 'static/'
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '[%(levelname)s] %(asctime)s %(module)s %(process)d %(thread)d: %(message)s'
+        },
+        'json': {
+            '()': jsonlogger.JsonFormatter,
+            'format': '%(levelname)s %(asctime)s %(module)s %(message)s'
+        },
+    },
+    'handlers': {
+        'console_debug': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'verbose',
+        },
+        'console_json': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'json',
+        },
+    },
+    'loggers': {
+        # Default Django logger for development/debugging
+        'django': {
+            'handlers': ['console_debug'],
+            'level': os.getenv('DJANGO_LOG_LEVEL', 'DEBUG'),
+            'propagate': True,
+        },
+        # Logger for API events with structured JSON output
+        'api': {
+            'handlers': ['console_json'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        # Logger for authentication events with structured JSON output
+        'authentication': {
+            'handlers': ['console_json'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+    },
+}

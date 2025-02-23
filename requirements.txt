@@ -1,6 +1,6 @@
-Django
+Django~=5.1.5
 python-dotenv
-mongoengine
+mongoengine~=0.29.1
 
 # Authentication & Security
 pyjwt
@@ -26,3 +26,5 @@ whitenoise
 django-debug-toolbar
 pytest-django
 
+
+python-json-logger~=3.2.1
