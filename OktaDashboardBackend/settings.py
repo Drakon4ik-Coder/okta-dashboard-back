@@ -41,7 +41,19 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'TrafficAnalysis.apps.TrafficanalysisConfig',
+    'rest_framework',
 ]
+
+REST_FRAMEWORK = {
+    'DEFAULT_THROTTLE_CLASSES': [
+        'rest_framework.throttling.AnonRateThrottle',
+        'rest_framework.throttling.UserRateThrottle',
+    ],
+    'DEFAULT_THROTTLE_RATES': {
+        'anon': '100/day',   # anonymous users: 100 requests per day
+        'user': '1000/day',  # authenticated users: 1000 requests per day
+    }
+}
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
