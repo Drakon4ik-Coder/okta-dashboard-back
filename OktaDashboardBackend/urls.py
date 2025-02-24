@@ -1,3 +1,5 @@
+from django.contrib import admin
+from django.urls import path, include
 """
 URL configuration for OktaDashboardBackend project.
 
@@ -19,4 +21,5 @@ from django.urls import path
 
 urlpatterns = [
     path('admin/', admin.site.urls),
+    path('metrics/', include('django_prometheus.urls')),
 ]
