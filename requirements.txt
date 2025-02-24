@@ -11,7 +11,7 @@ requests
 djangorestframework
 
 # Logging & Monitoring
-logging
+loguru
 sentry-sdk
 
 # Data Handling & Analysis
