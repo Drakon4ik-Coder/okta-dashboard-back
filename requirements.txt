@@ -24,5 +24,6 @@ whitenoise
 
 # Dev & Testing
 django-debug-toolbar
+django_prometheus
 pytest-django
 
