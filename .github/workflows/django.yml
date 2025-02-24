@@ -13,16 +13,12 @@ jobs:
     runs-on: ubuntu-latest
 
     services:
-      postgres:
-        image: postgres:15
-        env:
-          POSTGRES_USER: django
-          POSTGRES_PASSWORD: password
-          POSTGRES_DB: test_db
+      mongo:
+        image: mongo:5.0
         ports:
-          - 5432:5432
+          - 27017:27017
         options: >-
-          --health-cmd "pg_isready -U django" 
+          --health-cmd "mongo --eval 'db.adminCommand({ ping: 1 })'" 
           --health-interval 10s 
           --health-timeout 5s 
           --health-retries 5
@@ -34,21 +30,20 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.9'
+          python-version: '3.10'
 
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Run Django migrations
-        env:
-          DATABASE_URL: postgres://django:password@localhost:5432/test_db
+      - name: Set up environment variables
         run: |
-          python manage.py migrate
+          echo "DJANGO_SECRET_KEY=django-insecure-p^7r&&uakd6$&+i5)5vcwt&t7&d3=^(@i0vzm4evm&lsswlou@" >> .env
+          echo "DJANGO_DEBUG=True" >> .env
+          echo "MONGODB_HOST=mongodb://localhost:27017/okta_dashboard" >> .env
+          echo "MONGOENGINE_DB=okta_dashboard" >> .env
 
       - name: Run tests
-        env:
-          DATABASE_URL: postgres://django:password@localhost:5432/test_db
         run: |
           python manage.py test
