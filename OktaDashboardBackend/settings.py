@@ -15,19 +15,15 @@ SECRET_KEY = os.getenv('DJANGO_SECRET_KEY')
 DEBUG = os.getenv('DJANGO_DEBUG', 'False') == 'True'
 ALLOWED_HOSTS = os.getenv('DJANGO_ALLOWED_HOSTS', 'localhost,127.0.0.1,web').split(',')
 
-
-
-ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=["localhost", "127.0.0.1"])
-
 # Installed apps
 INSTALLED_APPS = [
     # Default Django apps
-    "django.contrib.admin",
-    "django.contrib.auth",
-    "django.contrib.contenttypes",
-    "django.contrib.sessions",
-    "django.contrib.messages",
-    "django.contrib.staticfiles",
+    'django.contrib.admin',
+    'django.contrib.auth',
+    'django.contrib.contenttypes',
+    'django.contrib.sessions',
+    'django.contrib.messages',
+    'django.contrib.staticfiles',
 
     # Custom apps
     "TrafficAnalysis",
@@ -56,12 +52,12 @@ TEMPLATES = [
             BASE_DIR / 'templates',
         ],
         'APP_DIRS': True,
-        "OPTIONS": {
-            "context_processors": [
-                "django.template.context_processors.debug",
-                "django.template.context_processors.request",
-                "django.contrib.auth.context_processors.auth",
-                "django.contrib.messages.context_processors.messages",
+        'OPTIONS': {
+            'context_processors': [
+                'django.template.context_processors.debug',
+                'django.template.context_processors.request',
+                'django.contrib.auth.context_processors.auth',
+                'django.contrib.messages.context_processors.messages',
             ],
         },
     },
@@ -71,14 +67,14 @@ WSGI_APPLICATION = "OktaDashboardBackend.wsgi.application"
 
 # Dummy database configuration to satisfy Django's system requirement
 DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.dummy",  # Dummy backend as MongoDB doesn't use Django ORM
+    'default': {
+        'ENGINE': 'django.db.backends.dummy',  # Dummy backend as MongoDB doesn't use Django ORM
     }
 }
 
 # MongoDB connection using MongoEngine
 MONGODB_DATABASES = {
-    "default": {
+    'default': {
         "name": env("MONGO_DB_NAME", default="your_database_name"),
         "host": env("MONGO_HOST", default="localhost"),
         "port": env.int("MONGO_PORT", default=27017),
