@@ -18,8 +18,9 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path
-
+from TrafficAnalysis.views import health_check
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('metrics/', include('django_prometheus.urls')),
+    path("health/", health_check, name="health_check"),
 ]
