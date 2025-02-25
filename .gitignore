@@ -1,4 +1,7 @@
 .idea
 venv
 .venv
+feature/db_connector
+.pyc
 .env
+main

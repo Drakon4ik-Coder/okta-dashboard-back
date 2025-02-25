@@ -84,15 +84,16 @@ MONGODB_DATABASES = {
     }
 }
 
-# Establish connection to MongoDB
-connect(
-    db=MONGODB_DATABASES["default"]["name"],
-    host=MONGODB_DATABASES["default"]["host"],
-    port=MONGODB_DATABASES["default"]["port"],
-    username=MONGODB_DATABASES["default"]["username"],
-    password=MONGODB_DATABASES["default"]["password"],
-    authentication_source=MONGODB_DATABASES["default"].get("authentication_source"),
+MONGODB_SETTINGS = {
+    'db': 'okta_dashboard',
+    'host': os.environ.get('MONGODB_URL', 'mongodb://localhost:27017/okta_dashboard')
+}
+
+mongoengine.connect(
+    db=MONGODB_SETTINGS['db'],
+    host=MONGODB_SETTINGS['host']
 )
+
 
 # Password validation
 AUTH_PASSWORD_VALIDATORS = [
