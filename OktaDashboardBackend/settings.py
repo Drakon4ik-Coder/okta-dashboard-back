@@ -1,23 +1,22 @@
 import os
 from pathlib import Path
-from mongoengine import connect
 import environ
+import mongoengine
 
-# Load environment variables from a .env file
+# Load environment variables
 env = environ.Env()
 environ.Env.read_env()  # Reads the .env file
 
-# Base directory of the project
+# Base directory
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# Quick-start development settings - unsuitable for production
-SECRET_KEY = os.getenv('DJANGO_SECRET_KEY')
-DEBUG = os.getenv('DJANGO_DEBUG', 'False') == 'True'
-ALLOWED_HOSTS = os.getenv('DJANGO_ALLOWED_HOSTS', 'localhost,127.0.0.1,web').split(',')
+# Security settings
+SECRET_KEY = env("DJANGO_SECRET_KEY", default="your-default-secret-key")
+DEBUG = env.bool("DJANGO_DEBUG", default=False)
+ALLOWED_HOSTS = env.list("DJANGO_ALLOWED_HOSTS", default=["localhost", "127.0.0.1", "web"])
 
 # Installed apps
 INSTALLED_APPS = [
-    # Default Django apps
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -42,15 +41,42 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
+# Root URLs and WSGI application
 ROOT_URLCONF = "OktaDashboardBackend.urls"
+WSGI_APPLICATION = "OktaDashboardBackend.wsgi.application"
 
-# Templates
+# Dummy database (only needed if Django's ORM is used somewhere)
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.dummy',  # Dummy backend as MongoDB doesn't use Django ORM
+    }
+}
+
+# MongoDB Configuration using MongoEngine
+MONGODB_NAME = env("MONGO_DB_NAME", default="okta_dashboard")
+MONGODB_HOST = env("MONGO_HOST", default="localhost")
+MONGODB_PORT = env.int("MONGO_PORT", default=27017)
+MONGODB_USER = env("MONGO_USER", default=None)
+MONGODB_PASSWORD = env("MONGO_PASSWORD", default=None)
+MONGODB_AUTH_SOURCE = env("MONGO_AUTH_SOURCE", default="admin")
+
+MONGODB_SETTINGS = {
+    'db': MONGODB_NAME,
+    'host': MONGODB_HOST,
+    'port': MONGODB_PORT,
+    'username': MONGODB_USER,
+    'password': MONGODB_PASSWORD,
+    'authentication_source': MONGODB_AUTH_SOURCE,
+}
+
+# Connect to MongoDB
+mongoengine.connect(**MONGODB_SETTINGS)
+
+# Template settings
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [
-            BASE_DIR / 'templates',
-        ],
+        'DIRS': [BASE_DIR / 'templates'],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -63,87 +89,57 @@ TEMPLATES = [
     },
 ]
 
-WSGI_APPLICATION = "OktaDashboardBackend.wsgi.application"
-
-# Dummy database configuration to satisfy Django's system requirement
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.dummy',  # Dummy backend as MongoDB doesn't use Django ORM
-    }
-}
-
-# MongoDB connection using MongoEngine
-MONGODB_DATABASES = {
-    'default': {
-        "name": env("MONGO_DB_NAME", default="your_database_name"),
-        "host": env("MONGO_HOST", default="localhost"),
-        "port": env.int("MONGO_PORT", default=27017),
-        "username": env("MONGO_USER", default=None),
-        "password": env("MONGO_PASSWORD", default=None),
-        "authentication_source": env("MONGO_AUTH_SOURCE", default="admin"),
-    }
-}
-
-MONGODB_SETTINGS = {
-    'db': 'okta_dashboard',
-    'host': os.environ.get('MONGODB_URL', 'mongodb://localhost:27017/okta_dashboard')
-}
-
-mongoengine.connect(
-    db=MONGODB_SETTINGS['db'],
-    host=MONGODB_SETTINGS['host']
-)
-
-
 # Password validation
 AUTH_PASSWORD_VALIDATORS = [
-    {
-        "NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator",
-    },
-    {
-        "NAME": "django.contrib.auth.password_validation.MinimumLengthValidator",
-    },
-    {
-        "NAME": "django.contrib.auth.password_validation.CommonPasswordValidator",
-    },
-    {
-        "NAME": "django.contrib.auth.password_validation.NumericPasswordValidator",
-    },
+    {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
+    {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator"},
+    {"NAME": "django.contrib.auth.password_validation.CommonPasswordValidator"},
+    {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
 ]
 
-# Internationalization
+# Localization settings
 LANGUAGE_CODE = "en-us"
 TIME_ZONE = "UTC"
 USE_I18N = True
 USE_L10N = True
 USE_TZ = True
 
-# Static files (CSS, JavaScript, Images)
+# Static and media files
 STATIC_URL = "/static/"
-STATICFILES_DIRS = [BASE_DIR / "static"]
+STATICFILES_DIRS = [BASE_DIR / "static"] if DEBUG else []
 STATIC_ROOT = BASE_DIR / "staticfiles"
 
-# Default primary key field type
-DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+MEDIA_URL = "/media/"
+MEDIA_ROOT = BASE_DIR / "media"
 
-# Security settings (adjust these in production)
+# Security settings
 CSRF_COOKIE_SECURE = env.bool("CSRF_COOKIE_SECURE", default=False)
 SESSION_COOKIE_SECURE = env.bool("SESSION_COOKIE_SECURE", default=False)
 SECURE_SSL_REDIRECT = env.bool("SECURE_SSL_REDIRECT", default=False)
-SECURE_CONTENT_TYPE_NOSNIFF = env.bool("SECURE_CONTENT_TYPE_NOSNIFF", default=False)
+SECURE_CONTENT_TYPE_NOSNIFF = env.bool("SECURE_CONTENT_TYPE_NOSNIFF", default=True)
 X_FRAME_OPTIONS = "DENY"
 
 # Logging configuration
 LOGGING = {
-    "version": 1,
-    "disable_existing_loggers": False,
-    "handlers": {
-        "console": {
-            "class": "logging.StreamHandler",
+    'version': 1,
+    'disable_existing_loggers': False,
+    'handlers': {
+        'file': {
+            'level': 'DEBUG',
+            'class': 'logging.FileHandler',
+            'filename': os.path.join(BASE_DIR, 'logs', 'django.log'),
         },
     },
-    "root": {
-        "handlers": ["console"],
-        "level": "WARNING",
+    'loggers': {
+        'django': {
+            'handlers': ['file'],
+            'level': 'DEBUG',
+            'propagate': True,
+        },
     },
 }
+
+LOGS_DIR = os.path.join(BASE_DIR, 'logs')
+if not os.path.exists(LOGS_DIR):
+    os.makedirs(LOGS_DIR)
+
