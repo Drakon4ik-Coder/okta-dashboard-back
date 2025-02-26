@@ -1,13 +1,14 @@
 import os
 from pathlib import Path
-import environ
 import mongoengine
+from mongoengine import connect
+import environ
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Load environment variables
 env = environ.Env()
-environ.Env.read_env(env_file=Path(BASE_DIR) / '.env')
+environ.Env.read_env(os.path.join(BASE_DIR, '.env'))
 
 # Security settings
 SECRET_KEY = env('DJANGO_SECRET_KEY')
@@ -46,14 +47,6 @@ MIDDLEWARE = [
 ROOT_URLCONF = "OktaDashboardBackend.urls"
 WSGI_APPLICATION = "OktaDashboardBackend.wsgi.application"
 
-# Dummy database (only needed if Django's ORM is used somewhere)
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.dummy' if os.getenv('CI') else 'django.db.backends.sqlite3',
-        'NAME': ':memory:',
-    }
-}
-
 # MongoDB Configuration using MongoEngine
 MONGODB_NAME = env("MONGO_DB_NAME", default="OktaDashboardDB")
 MONGODB_HOST = env("MONGO_HOST", default="localhost")
@@ -72,8 +65,6 @@ MONGODB_SETTINGS = {
 }
 
 
-# Connect to MongoDB
-mongoengine.connect(**MONGODB_SETTINGS)
 
 # Template settings
 TEMPLATES = [
@@ -93,6 +84,38 @@ TEMPLATES = [
     },
 ]
 
+WSGI_APPLICATION = "OktaDashboardBackend.wsgi.application"
+
+# Dummy database configuration to satisfy Django's system requirement
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.dummy' if os.getenv('CI') else 'django.db.backends.sqlite3',
+        'NAME': ':memory:',
+    }
+}
+
+# MongoDB connection using MongoEngine
+MONGODB_DATABASES = {
+    'default': {
+        "name": env("MONGO_DB_NAME", default="your_database_name"),
+        "host": env("MONGO_HOST", default="localhost"),
+        "port": env.int("MONGO_PORT", default=27017),
+        "username": env("MONGO_USER", default=None),
+        "password": env("MONGO_PASSWORD", default=None),
+        "authentication_source": env("MONGO_AUTH_SOURCE", default="admin"),
+    }
+}
+
+# Establish connection to MongoDB
+connect(
+    db=MONGODB_DATABASES["default"]["name"],
+    host=MONGODB_DATABASES["default"]["host"],
+    port=MONGODB_DATABASES["default"]["port"],
+    username=MONGODB_DATABASES["default"]["username"],
+    password=MONGODB_DATABASES["default"]["password"],
+    authentication_source=MONGODB_DATABASES["default"].get("authentication_source"),
+)
+
 # Password validation
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
@@ -105,6 +128,7 @@ AUTH_PASSWORD_VALIDATORS = [
 LANGUAGE_CODE = "en-us"
 TIME_ZONE = "UTC"
 USE_I18N = True
+USE_L10N = True
 USE_TZ = True
 
 # Static and media files
@@ -154,3 +178,4 @@ LOGGING = {
 LOGS_DIR = os.path.join(BASE_DIR, 'logs')
 if not os.path.exists(LOGS_DIR):
     os.makedirs(LOGS_DIR)
+
