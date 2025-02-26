@@ -11,7 +11,7 @@ environ.Env.read_env()  # Reads the .env file
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Security settings
-SECRET_KEY = env("DJANGO_SECRET_KEY", default="your-default-secret-key")
+SECRET_KEY = env("DJANGO_SECRET_KEY")
 DEBUG = env.bool("DJANGO_DEBUG", default=False)
 ALLOWED_HOSTS = env.list("DJANGO_ALLOWED_HOSTS", default=["localhost", "127.0.0.1", "web"])
 
@@ -39,6 +39,8 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
+
 ]
 
 # Root URLs and WSGI application
@@ -48,12 +50,13 @@ WSGI_APPLICATION = "OktaDashboardBackend.wsgi.application"
 # Dummy database (only needed if Django's ORM is used somewhere)
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.dummy',  # Dummy backend as MongoDB doesn't use Django ORM
+        'ENGINE': 'django.db.backends.dummy' if os.getenv('CI') else 'django.db.backends.sqlite3',
+        'NAME': ':memory:',
     }
 }
 
 # MongoDB Configuration using MongoEngine
-MONGODB_NAME = env("MONGO_DB_NAME", default="okta_dashboard")
+MONGODB_NAME = env("MONGO_DB_NAME", default="OktaDashboardDB")
 MONGODB_HOST = env("MONGO_HOST", default="localhost")
 MONGODB_PORT = env.int("MONGO_PORT", default=27017)
 MONGODB_USER = env("MONGO_USER", default=None)
@@ -82,6 +85,7 @@ TEMPLATES = [
             'context_processors': [
                 'django.template.context_processors.debug',
                 'django.template.context_processors.request',
+                'django.template.context_processors.static',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
             ],
@@ -101,12 +105,20 @@ AUTH_PASSWORD_VALIDATORS = [
 LANGUAGE_CODE = "en-us"
 TIME_ZONE = "UTC"
 USE_I18N = True
-USE_L10N = True
 USE_TZ = True
 
 # Static and media files
-STATIC_URL = "/static/"
-STATICFILES_DIRS = [BASE_DIR / "static"] if DEBUG else []
+STATIC_URL = '/static/'
+STATICFILES_DIRS = [BASE_DIR / 'static']
+STATICFILES_FINDERS = [
+    'django.contrib.staticfiles.finders.FileSystemFinder',
+    'django.contrib.staticfiles.finders.AppDirectoriesFinder',
+]
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+WHITENOISE_AUTOREFRESH = env.bool("DJANGO_WHITENOISE_AUTOREFRESH", default=True)
+WHITENOISE_USE_FINDERS = True
+WHITENOISE_MANIFEST_STRICT = False
+WHITENOISE_ROOT = BASE_DIR / "staticfiles"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 
 MEDIA_URL = "/media/"
@@ -142,4 +154,3 @@ LOGGING = {
 LOGS_DIR = os.path.join(BASE_DIR, 'logs')
 if not os.path.exists(LOGS_DIR):
     os.makedirs(LOGS_DIR)
-

@@ -40,12 +40,6 @@ table {
 @font-face {
     font-family: "Value Serif";
     src: url("https://db.onlinewebfonts.com/t/960c2934e496ee51f2e158cd1a6649db.eot");
-    src: url("https://db.onlinewebfonts.com/t/960c2934e496ee51f2e158cd1a6649db.eot?#iefix") format("embedded-opentype"),
-         url("https://db.onlinewebfonts.com/t/960c2934e496ee51f2e158cd1a6649db.woff2") format("woff2"),
-         url("https://db.onlinewebfonts.com/t/960c2934e496ee51f2e158cd1a6649db.woff") format("woff"),
-         url("https://db.onlinewebfonts.com/t/960c2934e496ee51f2e158cd1a6649db.ttf") format("truetype"),
-         url("https://db.onlinewebfonts.com/t/960c2934e496ee51f2e158cd1a6649db.svg#Value Serif Bold") format("svg");
-    font-weight: bold;
 }
 
 /* ==== ROOT VARIABLES ==== */
@@ -298,15 +292,19 @@ a:hover {
     .hero h1 {
         font-size: 2rem;
     }
+
     .hero p {
         font-size: 1rem;
     }
+
     .features h2 {
         font-size: 2rem;
     }
+
     .features .feature h3 {
         font-size: 1.25rem;
     }
+
     .cta h2 {
         font-size: 1.5rem;
     }

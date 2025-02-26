@@ -21,7 +21,6 @@ from TrafficAnalysis import views
 from TrafficAnalysis.views import health_check
 from django.urls import path, include
 
-
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('metrics/', include('django_prometheus.urls')),
