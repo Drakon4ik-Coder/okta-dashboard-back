@@ -54,8 +54,8 @@ jobs:
           done
 
       - name: Check MongoDB service health
-        run:
-        mongo --eval "db.adminCommand({ ping: 1 })"
+        run: |
+          mongo --eval "db.adminCommand({ ping: 1 })"
 
       - name: Run tests
         run: |
