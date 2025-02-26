@@ -36,6 +36,11 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
+      - name: Install MongoDB CLI
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y mongodb-clients
+
       - name: Set up environment variables
         run: |
           echo "DJANGO_SECRET_KEY=django-insecure-p^7r&&uakd6$&+i5)5vcwt&t7&d3=^(@i0vzm4evm&lsswlou@" >> $GITHUB_ENV
