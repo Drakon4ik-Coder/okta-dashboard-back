@@ -44,6 +44,19 @@ jobs:
           echo "MONGODB_HOST=mongodb://localhost:27017/okta_dashboard" >> .env
           echo "MONGOENGINE_DB=okta_dashboard" >> .env
 
+      - name: Verify environment variables
+        run: printenv | grep DJANGO_SECRET_KEY
+
+      - name: Wait for MongoDB to be ready
+        run: |
+          for i in {1..10}; do
+            mongo --eval "db.adminCommand({ ping: 1 })" && break || sleep 5;
+          done
+
+      - name: Check MongoDB service health
+        run:
+        mongo --eval "db.adminCommand({ ping: 1 })"
+
       - name: Run tests
         run: |
           python manage.py test

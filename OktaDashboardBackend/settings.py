@@ -3,16 +3,15 @@ from pathlib import Path
 import environ
 import mongoengine
 
-# Load environment variables
-env = environ.Env()
-environ.Env.read_env()  # Reads the .env file
-
-# Base directory
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+# Load environment variables
+env = environ.Env()
+environ.Env.read_env(env_file=Path(BASE_DIR) / '.env')
+
 # Security settings
-SECRET_KEY = env("DJANGO_SECRET_KEY")
-DEBUG = env.bool("DJANGO_DEBUG", default=False)
+SECRET_KEY = env('DJANGO_SECRET_KEY')
+DEBUG = env('DEBUG')
 ALLOWED_HOSTS = env.list("DJANGO_ALLOWED_HOSTS", default=["localhost", "127.0.0.1", "web"])
 
 # Installed apps
@@ -64,13 +63,14 @@ MONGODB_PASSWORD = env("MONGO_PASSWORD", default=None)
 MONGODB_AUTH_SOURCE = env("MONGO_AUTH_SOURCE", default="admin")
 
 MONGODB_SETTINGS = {
-    'db': MONGODB_NAME,
-    'host': MONGODB_HOST,
-    'port': MONGODB_PORT,
-    'username': MONGODB_USER,
-    'password': MONGODB_PASSWORD,
-    'authentication_source': MONGODB_AUTH_SOURCE,
+    'db': env('MONGODB_NAME'),
+    'host': env('MONGO_HOST'),
+    'port': int(env('MONGO_PORT')),
+    'username': env('MONGO_USER'),
+    'password': env('MONGO_PASSWORD'),
+    'authentication_source': env('MONGO_AUTH_SOURCE'),
 }
+
 
 # Connect to MongoDB
 mongoengine.connect(**MONGODB_SETTINGS)
