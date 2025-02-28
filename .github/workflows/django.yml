@@ -22,6 +22,7 @@ jobs:
           --health-interval 10s 
           --health-timeout 5s 
           --health-retries 5
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -36,20 +37,19 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Install MongoDB CLI
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y mongodb-clients
-
       - name: Set up environment variables
         run: |
-          echo "DJANGO_SECRET_KEY=django-insecure-p^7r&&uakd6$&+i5)5vcwt&t7&d3=^(@i0vzm4evm&lsswlou@" >> $GITHUB_ENV
-          echo "DJANGO_DEBUG=True" >> $GITHUB_ENV
-          echo "MONGODB_HOST=mongodb://localhost:27017/okta_dashboard" >> $GITHUB_ENV
-          echo "MONGOENGINE_DB=okta_dashboard" >> $GITHUB_ENV
+          echo "DJANGO_SECRET_KEY=${{ secrets.DJANGO_SECRET_KEY }}" >> .env
+          echo "DEBUG=${{ secrets.DEBUG }}" >> .env
+          echo "MONGO_DB_NAME=${{ secrets.MONGO_DB_NAME }}" >> .env
+          echo "MONGO_HOST=${{ secrets.MONGO_HOST }}" >> .env
+          echo "MONGO_USER=${{ secrets.MONGO_USER }}" >> .env
+          echo "MONGO_PASSWORD=${{ secrets.MONGO_PASSWORD }}" >> .env
+          echo "MONGO_AUTH_SOURCE=${{ secrets.MONGO_AUTH_SOURCE }}" >> .env
 
       - name: Verify environment variables
-        run: echo "$DJANGO_SECRET_KEY"
+        run: |
+          printenv | grep DJANGO_SECRET_KEY
 
       - name: Wait for MongoDB to be ready
         run: |
@@ -61,6 +61,14 @@ jobs:
         run: |
           mongo --eval "db.adminCommand({ ping: 1 })"
 
+      - name: Run migrations
+        run: |
+          python manage.py migrate --noinput
+
       - name: Run tests
         run: |
           python manage.py test
+
+      - name: Collect static files
+        run: |
+          python manage.py collectstatic --noinput
