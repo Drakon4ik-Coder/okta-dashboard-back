@@ -40,7 +40,7 @@ jobs:
       - name: Set up environment variables
         run: |
           echo "DJANGO_SECRET_KEY=${{ secrets.DJANGO_SECRET_KEY }}" >> .env
-          echo "DEBUG=${{ secrets.DEBUG }}" >> .env
+          echo "DEBUG=${{ secrets.DEBUG || 'False' }}" >> .env
           echo "MONGO_DB_NAME=${{ secrets.MONGO_DB_NAME }}" >> .env
           echo "MONGO_HOST=${{ secrets.MONGO_HOST }}" >> .env
           echo "MONGO_USER=${{ secrets.MONGO_USER }}" >> .env
