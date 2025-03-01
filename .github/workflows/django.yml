@@ -56,6 +56,7 @@ jobs:
           echo "MONGO_USER=${{ secrets.MONGO_USER }}" >> $GITHUB_ENV
           echo "MONGO_PASSWORD=${{ secrets.MONGO_PASSWORD }}" >> $GITHUB_ENV
           echo "MONGO_AUTH_SOURCE=${{ secrets.MONGO_AUTH_SOURCE }}" >> $GITHUB_ENV
+          echo "MONGO_PORT=${{ secrets.MONGO_PORT }}" >> $GITHUB_ENV
 
       - name: Verify environment variables
         run: echo "DJANGO_SECRET_KEY is set"
