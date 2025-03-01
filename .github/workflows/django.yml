@@ -52,13 +52,21 @@ jobs:
           echo "DJANGO_SECRET_KEY=${{ secrets.DJANGO_SECRET_KEY }}" >> $GITHUB_ENV
           echo "DEBUG=${{ secrets.DEBUG || 'False' }}" >> $GITHUB_ENV
           echo "MONGO_DB_NAME=${{ secrets.MONGO_DB_NAME }}" >> $GITHUB_ENV
+          echo "MONGODB_NAME=${{ secrets.MONGODB_NAME }}" >> $GITHUB_ENV
           echo "MONGO_HOST=${{ secrets.MONGO_HOST }}" >> $GITHUB_ENV
+          echo "MONGO_PORT=${{ secrets.MONGO_PORT }}" >> $GITHUB_ENV
           echo "MONGO_USER=${{ secrets.MONGO_USER }}" >> $GITHUB_ENV
           echo "MONGO_PASSWORD=${{ secrets.MONGO_PASSWORD }}" >> $GITHUB_ENV
           echo "MONGO_AUTH_SOURCE=${{ secrets.MONGO_AUTH_SOURCE }}" >> $GITHUB_ENV
+          echo "DJANGO_DB_ENGINE=django.db.backends.sqlite3" >> $GITHUB_ENV
+          echo "DJANGO_DB_NAME=:memory:" >> $GITHUB_ENV
+          echo "DJANGO_ALLOWED_HOSTS=*" >> $GITHUB_ENV
+          echo "CSRF_COOKIE_SECURE=False" >> $GITHUB_ENV
+          echo "SESSION_COOKIE_SECURE=False" >> $GITHUB_ENV
+          echo "SECURE_SSL_REDIRECT=False" >> $GITHUB_ENV
 
       - name: Verify environment variables
-        run: echo "DJANGO_SECRET_KEY is set"
+        run: printenv | grep -E 'DJANGO_SECRET_KEY|MONGO_DB_NAME|MONGO_HOST|DJANGO_DB_ENGINE'
 
       - name: Wait for MongoDB to be ready
         run: |
