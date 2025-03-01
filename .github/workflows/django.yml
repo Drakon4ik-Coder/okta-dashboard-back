@@ -35,25 +35,23 @@ jobs:
       - name: Upgrade pip and setuptools
         run: |
           python -m pip install --upgrade pip setuptools
-      
+
       - name: Install dependencies with retries
         run: |
-          python -m pip install --upgrade pip
           for i in {1..5}; do pip install -r requirements.txt && break || sleep 5; done
 
       - name: Set up environment variables
         run: |
-          echo "DJANGO_SECRET_KEY=${{ secrets.DJANGO_SECRET_KEY }}" >> .env
-          echo "DEBUG=${{ secrets.DEBUG || 'False' }}" >> .env
-          echo "MONGO_DB_NAME=${{ secrets.MONGO_DB_NAME }}" >> .env
-          echo "MONGO_HOST=${{ secrets.MONGO_HOST }}" >> .env
-          echo "MONGO_USER=${{ secrets.MONGO_USER }}" >> .env
-          echo "MONGO_PASSWORD=${{ secrets.MONGO_PASSWORD }}" >> .env
-          echo "MONGO_AUTH_SOURCE=${{ secrets.MONGO_AUTH_SOURCE }}" >> .env
+          echo "DJANGO_SECRET_KEY=${{ secrets.DJANGO_SECRET_KEY }}" >> $GITHUB_ENV
+          echo "DEBUG=${{ secrets.DEBUG || 'False' }}" >> $GITHUB_ENV
+          echo "MONGO_DB_NAME=${{ secrets.MONGO_DB_NAME }}" >> $GITHUB_ENV
+          echo "MONGO_HOST=${{ secrets.MONGO_HOST }}" >> $GITHUB_ENV
+          echo "MONGO_USER=${{ secrets.MONGO_USER }}" >> $GITHUB_ENV
+          echo "MONGO_PASSWORD=${{ secrets.MONGO_PASSWORD }}" >> $GITHUB_ENV
+          echo "MONGO_AUTH_SOURCE=${{ secrets.MONGO_AUTH_SOURCE }}" >> $GITHUB_ENV
 
       - name: Verify environment variables
-        run: |
-          printenv | grep DJANGO_SECRET_KEY
+        run: echo "DJANGO_SECRET_KEY is set"
 
       - name: Wait for MongoDB to be ready
         run: |
