@@ -1,28 +1,36 @@
 import os
 from pathlib import Path
-import mongoengine
-from mongoengine import connect
 import environ
+from mongoengine import connect
 
+# Base directory
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Load environment variables
 env = environ.Env()
-environ.Env.read_env(os.path.join(BASE_DIR, '.env'))
+environ.Env.read_env(os.path.join(BASE_DIR, ".env"))
+
+# Function to read Docker secrets if available
+def get_secret_from_file(filepath, default=None):
+    try:
+        with open(filepath) as f:
+            return f.read().strip()
+    except FileNotFoundError:
+        return default
 
 # Security settings
-SECRET_KEY = env('DJANGO_SECRET_KEY')
-DEBUG = env('DEBUG')
+SECRET_KEY = get_secret_from_file("/run/secrets/django_secret_key", env("DJANGO_SECRET_KEY", default="unsafe-default-key"))
+DEBUG = env.bool("DEBUG", default=False)
 ALLOWED_HOSTS = env.list("DJANGO_ALLOWED_HOSTS", default=["localhost", "127.0.0.1", "web"])
 
 # Installed apps
 INSTALLED_APPS = [
-    'django.contrib.admin',
-    'django.contrib.auth',
-    'django.contrib.contenttypes',
-    'django.contrib.sessions',
-    'django.contrib.messages',
-    'django.contrib.staticfiles',
+    "django.contrib.admin",
+    "django.contrib.auth",
+    "django.contrib.contenttypes",
+    "django.contrib.sessions",
+    "django.contrib.messages",
+    "django.contrib.staticfiles",
 
     # Custom apps
     "TrafficAnalysis",
@@ -30,91 +38,63 @@ INSTALLED_APPS = [
 
 # Middleware
 MIDDLEWARE = [
-    'django_prometheus.middleware.PrometheusBeforeMiddleware',
-    'django_prometheus.middleware.PrometheusAfterMiddleware',
-    'django.middleware.security.SecurityMiddleware',
-    'django.contrib.sessions.middleware.SessionMiddleware',
-    'django.middleware.common.CommonMiddleware',
-    'django.middleware.csrf.CsrfViewMiddleware',
-    'django.contrib.auth.middleware.AuthenticationMiddleware',
-    'django.contrib.messages.middleware.MessageMiddleware',
-    'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    'whitenoise.middleware.WhiteNoiseMiddleware',
-
+    "django_prometheus.middleware.PrometheusBeforeMiddleware",
+    "django_prometheus.middleware.PrometheusAfterMiddleware",
+    "django.middleware.security.SecurityMiddleware",
+    "django.contrib.sessions.middleware.SessionMiddleware",
+    "django.middleware.common.CommonMiddleware",
+    "django.middleware.csrf.CsrfViewMiddleware",
+    "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "django.contrib.messages.middleware.MessageMiddleware",
+    "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",
 ]
 
-# Root URLs and WSGI application
+# Root URL configuration
 ROOT_URLCONF = "OktaDashboardBackend.urls"
 WSGI_APPLICATION = "OktaDashboardBackend.wsgi.application"
 
 # MongoDB Configuration using MongoEngine
-MONGODB_NAME = env("MONGO_DB_NAME", default="OktaDashboardDB")
-MONGODB_HOST = env("MONGO_HOST", default="localhost")
-MONGODB_PORT = env.int("MONGO_PORT", default=27017)
-MONGODB_USER = env("MONGO_USER", default=None)
-MONGODB_PASSWORD = env("MONGO_PASSWORD", default=None)
-MONGODB_AUTH_SOURCE = env("MONGO_AUTH_SOURCE", default="admin")
-
 MONGODB_SETTINGS = {
-    'db': env('MONGODB_NAME'),
-    'host': env('MONGO_HOST'),
-    'port': int(env('MONGO_PORT')),
-    'username': env('MONGO_USER'),
-    'password': env('MONGO_PASSWORD'),
-    'authentication_source': env('MONGO_AUTH_SOURCE'),
+    "db": env("MONGO_DB_NAME", default="OktaDashboardDB"),
+    "host": env("MONGO_HOST", default="localhost"),
+    "port": env.int("MONGO_PORT", default=27017),
+    "username": get_secret_from_file("/run/secrets/mongo_user", env("MONGO_USER", default=None)),
+    "password": get_secret_from_file("/run/secrets/mongo_password", env("MONGO_PASSWORD", default=None)),
+    "authentication_source": env("MONGO_AUTH_SOURCE", default="admin"),
 }
 
+# Establish connection to MongoDB
+if MONGODB_SETTINGS["username"] and MONGODB_SETTINGS["password"]:
+    connect(**MONGODB_SETTINGS)
+else:
+    connect(db=MONGODB_SETTINGS["db"], host=MONGODB_SETTINGS["host"], port=MONGODB_SETTINGS["port"])
 
+# Dummy database configuration for Django system requirements
+DATABASES = {
+    "default": {
+        "ENGINE": "django.db.backends.dummy" if os.getenv("CI") else "django.db.backends.sqlite3",
+        "NAME": ":memory:",
+    }
+}
 
-# Template settings
+# Templates
 TEMPLATES = [
     {
-        'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [BASE_DIR / 'templates'],
-        'APP_DIRS': True,
-        'OPTIONS': {
-            'context_processors': [
-                'django.template.context_processors.debug',
-                'django.template.context_processors.request',
-                'django.template.context_processors.static',
-                'django.contrib.auth.context_processors.auth',
-                'django.contrib.messages.context_processors.messages',
+        "BACKEND": "django.template.backends.django.DjangoTemplates",
+        "DIRS": [BASE_DIR / "templates"],
+        "APP_DIRS": True,
+        "OPTIONS": {
+            "context_processors": [
+                "django.template.context_processors.debug",
+                "django.template.context_processors.request",
+                "django.template.context_processors.static",
+                "django.contrib.auth.context_processors.auth",
+                "django.contrib.messages.context_processors.messages",
             ],
         },
     },
 ]
-
-WSGI_APPLICATION = "OktaDashboardBackend.wsgi.application"
-
-# Dummy database configuration to satisfy Django's system requirement
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.dummy' if os.getenv('CI') else 'django.db.backends.sqlite3',
-        'NAME': ':memory:',
-    }
-}
-
-# MongoDB connection using MongoEngine
-MONGODB_DATABASES = {
-    'default': {
-        "name": env("MONGO_DB_NAME", default="your_database_name"),
-        "host": env("MONGO_HOST", default="localhost"),
-        "port": env.int("MONGO_PORT", default=27017),
-        "username": env("MONGO_USER", default=None),
-        "password": env("MONGO_PASSWORD", default=None),
-        "authentication_source": env("MONGO_AUTH_SOURCE", default="admin"),
-    }
-}
-
-# Establish connection to MongoDB
-connect(
-    db=MONGODB_DATABASES["default"]["name"],
-    host=MONGODB_DATABASES["default"]["host"],
-    port=MONGODB_DATABASES["default"]["port"],
-    username=MONGODB_DATABASES["default"]["username"],
-    password=MONGODB_DATABASES["default"]["password"],
-    authentication_source=MONGODB_DATABASES["default"].get("authentication_source"),
-)
 
 # Password validation
 AUTH_PASSWORD_VALIDATORS = [
@@ -132,13 +112,9 @@ USE_L10N = True
 USE_TZ = True
 
 # Static and media files
-STATIC_URL = '/static/'
-STATICFILES_DIRS = [BASE_DIR / 'static']
-STATICFILES_FINDERS = [
-    'django.contrib.staticfiles.finders.FileSystemFinder',
-    'django.contrib.staticfiles.finders.AppDirectoriesFinder',
-]
-STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+STATIC_URL = "/static/"
+STATICFILES_DIRS = [BASE_DIR / "static"]
+STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 WHITENOISE_AUTOREFRESH = env.bool("DJANGO_WHITENOISE_AUTOREFRESH", default=True)
 WHITENOISE_USE_FINDERS = True
 WHITENOISE_MANIFEST_STRICT = False
@@ -157,25 +133,25 @@ X_FRAME_OPTIONS = "DENY"
 
 # Logging configuration
 LOGGING = {
-    'version': 1,
-    'disable_existing_loggers': False,
-    'handlers': {
-        'file': {
-            'level': 'DEBUG',
-            'class': 'logging.FileHandler',
-            'filename': os.path.join(BASE_DIR, 'logs', 'django.log'),
+    "version": 1,
+    "disable_existing_loggers": False,
+    "handlers": {
+        "file": {
+            "level": "DEBUG",
+            "class": "logging.FileHandler",
+            "filename": os.path.join(BASE_DIR, "logs", "django.log"),
         },
     },
-    'loggers': {
-        'django': {
-            'handlers': ['file'],
-            'level': 'DEBUG',
-            'propagate': True,
+    "loggers": {
+        "django": {
+            "handlers": ["file"],
+            "level": "DEBUG",
+            "propagate": True,
         },
     },
 }
 
-LOGS_DIR = os.path.join(BASE_DIR, 'logs')
+# Ensure logs directory exists
+LOGS_DIR = os.path.join(BASE_DIR, "logs")
 if not os.path.exists(LOGS_DIR):
     os.makedirs(LOGS_DIR)
-
