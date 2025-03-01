@@ -52,6 +52,7 @@ jobs:
           echo "DJANGO_SECRET_KEY=${{ secrets.DJANGO_SECRET_KEY }}" >> $GITHUB_ENV
           echo "DEBUG=${{ secrets.DEBUG || 'False' }}" >> $GITHUB_ENV
           echo "MONGO_DB_NAME=${{ secrets.MONGO_DB_NAME }}" >> $GITHUB_ENV
+          echo "MONGODB_NAME=${{ secrets.MONGODB_NAME }}" >> $GITHUB_ENV
           echo "MONGO_HOST=${{ secrets.MONGO_HOST }}" >> $GITHUB_ENV
           echo "MONGO_PORT=${{ secrets.MONGO_PORT }}" >> $GITHUB_ENV
           echo "MONGO_USER=${{ secrets.MONGO_USER }}" >> $GITHUB_ENV
