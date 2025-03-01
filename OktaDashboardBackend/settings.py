@@ -73,10 +73,11 @@ else:
 # Dummy database configuration for Django system requirements
 DATABASES = {
     "default": {
-        "ENGINE": "django.db.backends.dummy" if os.getenv("CI") else "django.db.backends.sqlite3",
-        "NAME": ":memory:",
+        "ENGINE": env("DJANGO_DB_ENGINE", default="django.db.backends.sqlite3"),
+        "NAME": env("DJANGO_DB_NAME", default=":memory:"),
     }
 }
+
 
 # Templates
 TEMPLATES = [
