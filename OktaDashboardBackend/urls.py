@@ -27,4 +27,6 @@ urlpatterns = [
     path('', views.landing_page, name='landing_page'),  # Add this line for the landing page
     path('dashboard/', views.dashboard, name='dashboard'),
     path('health/', health_check, name="health_check"),
+    path('api-auth/', include('rest_framework.urls')),
+
 ]

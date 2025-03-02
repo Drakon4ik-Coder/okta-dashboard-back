@@ -1,4 +1,5 @@
 dnspython
+markdown==3.5
 
 # Core Framework
 Django>=3.2,<4.0
@@ -39,5 +40,7 @@ django-debug-toolbar>=3.2
 pytest-django>=4.4.0
 django-extensions>=3.0
 
+
 # Optional Caching & Optimization (Add if needed)
 django-redis>=5.0
+
