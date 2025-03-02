@@ -23,6 +23,10 @@ SECRET_KEY = get_secret_from_file("/run/secrets/django_secret_key", env("DJANGO_
 DEBUG = env.bool("DEBUG", default=False)
 ALLOWED_HOSTS = env.list("DJANGO_ALLOWED_HOSTS", default=["localhost", "127.0.0.1", "web"])
 
+# Okta Credentials
+OKTA_API_TOKEN = env("OKTA_API_TOKEN", default=None)
+OKTA_ORG_URL = env("OKTA_ORG_URL", default=None)
+
 # Installed apps
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -31,12 +35,8 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
-
-    # Custom apps
     "TrafficAnalysis",
-
     'rest_framework',
-
 ]
 
 REST_FRAMEWORK = {
@@ -80,10 +80,7 @@ MONGODB_SETTINGS = {
 }
 
 # Establish connection to MongoDB
-if MONGODB_SETTINGS["username"] and MONGODB_SETTINGS["password"]:
-    connect(**MONGODB_SETTINGS)
-else:
-    connect(db=MONGODB_SETTINGS["db"], host=MONGODB_SETTINGS["host"], port=MONGODB_SETTINGS["port"])
+connect(**{k: v for k, v in MONGODB_SETTINGS.items() if v is not None})
 
 # Dummy database configuration for Django system requirements
 DATABASES = {
@@ -92,7 +89,6 @@ DATABASES = {
         "NAME": env("DJANGO_DB_NAME", default=":memory:"),
     }
 }
-
 
 # Templates
 TEMPLATES = [
@@ -169,5 +165,4 @@ LOGGING = {
 
 # Ensure logs directory exists
 LOGS_DIR = os.path.join(BASE_DIR, "logs")
-if not os.path.exists(LOGS_DIR):
-    os.makedirs(LOGS_DIR)
+os.makedirs(LOGS_DIR, exist_ok=True)
