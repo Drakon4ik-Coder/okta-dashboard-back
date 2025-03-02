@@ -88,4 +88,5 @@ jobs:
 
       - name: Collect static files
         run: |
+          mkdir -p static
           python manage.py collectstatic --noinput
