@@ -3,6 +3,8 @@ from OktaDashboardBackend.services.database import DatabaseService
 import mongoengine
 from mongoengine.connection import get_connection
 import os
+import environ
+from pathlib import Path
 
 class TestDatabaseConnection(TestCase):
     def setUp(self):
@@ -28,7 +30,10 @@ class TestDatabaseConnection(TestCase):
             self.assertEqual(id(db_service), id(second_service))
             
             # Test basic query capability
-            db = get_connection().get_database()
+            BASE_DIR = Path(__file__).resolve().parent.parent
+            env = environ.Env()
+            environ.Env.read_env(os.path.join(BASE_DIR, ".env"))
+            db = get_connection().db = get_connection().get_database('OktaDashboardDB')
             # Create a test collection and insert a document
             test_collection = db.get_collection('test_collection')
             test_collection.insert_one({'test': 'data'})
