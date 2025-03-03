@@ -43,9 +43,11 @@ h2DI9zZ1r+h9QZkrJniVW6xn
 -----END PRIVATE KEY-----
 """
 current_time = int(time.time())
+
+# Update to use current_time
 dpop_jwt_payload = {
-    "iat": 1740926269,
-    "exp": 1740926269 + 3600,
+    "iat": current_time,
+    "exp": current_time + 3600,
     "jti": str(uuid.uuid4()),
     "htm": "POST",
     "htu": token_endpoint
@@ -64,13 +66,13 @@ dpop_jwt = jwt.encode(
     headers=dpop_jwt_header
 )
 
-# Payload for client assertion JWT
+# Update client assertion payload to use current_time
 client_assertion_payload = {
-    "iat": 1740925969,
+    "iat": current_time,
     "iss": client_id,
     "sub": client_id,
     "aud": token_endpoint,
-    "exp": 1740925969 + 3600 # 1 hour expiration
+    "exp": current_time + 3600  # 1 hour expiration
 }
 
 # Encode the client assertion JWT
