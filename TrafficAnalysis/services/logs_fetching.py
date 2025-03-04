@@ -70,7 +70,7 @@ client_assertion_payload = {
     "iss": client_id,
     "sub": client_id,
     "aud": token_endpoint,
-    "exp": current_time+ 3600 #
+    "exp": current_time + 3600
 }
 
 # Encode the client assertion JWT
