@@ -4,4 +4,4 @@ venv
 .env
 .pyc
 .env
-
+__pycache__/
