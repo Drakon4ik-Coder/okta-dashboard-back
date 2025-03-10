@@ -2,14 +2,15 @@ import time
 import jwt
 import requests
 import uuid
+import schedule
+
 
 
 okta_domain = "https://dev-27051270.okta.com/"
 token_endpoint = okta_domain + "oauth2/v1/token"
 client_id = "0oanklbwmwvsPqp5M5d7"
 client_secret = "WrB9f-1Zlo_iDQjbN2gI_BGjiP1jKJnPMAp88R3Vv92fFnVs3N2U7ITTyzzbMboZ"
-kid =  "e7eP5nwiDaYgqdD-FGWvAVNrlMchsUSZbGXzCjamAYA"
-
+kid = "e7eP5nwiDaYgqdD-FGWvAVNrlMchsUSZbGXzCjamAYA"
 
 
 private_key = """
@@ -44,10 +45,14 @@ h2DI9zZ1r+h9QZkrJniVW6xn
 """
 current_time = int(time.time())
 
+# Define the API endpoint
+logs_endpoint = f"{okta_domain}/api/v1/logs"
+
+
 # Update to use current_time
 dpop_jwt_payload = {
     "iat": current_time,
-    "exp": current_time + 3600,
+    "exp": current_time + 300,
     "jti": str(uuid.uuid4()),
     "htm": "POST",
     "htu": token_endpoint
@@ -72,7 +77,7 @@ client_assertion_payload = {
     "iss": client_id,
     "sub": client_id,
     "aud": token_endpoint,
-    "exp": current_time + 3600  # 1 hour expiration
+    "exp": current_time + 300  # 1 hour expiration
 }
 
 # Encode the client assertion JWT
@@ -105,8 +110,87 @@ try:
     response.raise_for_status()
     access_token = response.json().get("access_token")
     print(f"Access Token: {access_token}")
+
 except requests.exceptions.RequestException as e:
     print(f"Error getting access token: {response.status_code if 'response' in locals() else 'No response'}")
     print(f"Error details: {e}")
     if 'response' in locals():
         print(f"Response text: {response.text}")
+    access_token = None
+def fetch_logs(access_token):
+    if not access_token:
+        print("There is no valid access token")
+        return None
+
+    logs_endpoint = f"{okta_domain}api/v1/logs"
+
+    logs_headers = {
+        "Authorization": f"Bearer {access_token}",
+        "Accept": "application/json"
+    }
+
+    # Optional query parameters to filter logs (adjust as needed)
+    params = {
+        "since": "2025-03-01T00:00:00.000Z",  # ISO 8601 format timestamp
+        "until": "2025-03-05T23:59:59.000Z",  # Up to current date
+        "limit": 100,  # Number of log entries per page (max 1000)
+        # Add other filters as needed: q, filter, sortOrder
+    }
+
+
+    try:
+        response_logs = requests.get(logs_endpoint, headers=logs_headers, params=params)
+        response_logs.raise_for_status()
+
+        logs = response_logs.json()
+
+
+        print("System Logs:")
+        for log_entry in logs:
+            print(f"Time: {log_entry.get('published')}")
+            print(f"Event Type: {log_entry.get('eventType')}")
+            print(f"Actor: {log_entry.get('actor', {}).get('displayName', 'N/A')}")
+            print(f"Outcome: {log_entry.get('outcome', {}).get('result', 'N/A')}")
+            print("---")
+
+
+        # Handle pagination if needed
+        next_link = response_logs.headers.get('Link', '').split(';')[0].strip('<>')
+        if next_link:
+            print("More logs available at:", next_link)
+
+        return logs
+
+    except requests.exceptions.RequestException as e:
+        print(f"Error getting logs: {response_logs.status_code if 'response_logs' in locals() else 'No response'}")
+        print(f"Error details: {e}")
+        if 'response_logs' in locals():
+            print(f"Response text: {response_logs.text}")
+        return None
+
+# Call the function with the access_token
+if access_token:
+    logs = fetch_logs(access_token)
+else:
+    print("Cannot fetch logs without access token")
+def scheduler_task():
+    if access_token:
+        fetch_logs(access_token)
+
+
+# Schedule to run every 10 minutes
+schedule.every(10).minutes.do(scheduler_task)
+
+while True:
+
+    schedule.run_pending()
+    time.sleep(1)
+
+
+
+
+
+
+
+
+
