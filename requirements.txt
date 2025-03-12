@@ -21,7 +21,7 @@ requests>=2.28.0
 djangorestframework>=3.12.0
 
 # Static Files Management
-whitenoise>=6.0.0
+whitenoise>=6.0.0pi
 
 # Logging & Monitoring
 loguru>=0.6.0
