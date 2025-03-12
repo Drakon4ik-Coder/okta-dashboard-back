@@ -43,7 +43,6 @@ INSTALLED_APPS = [
     'django_q',
 
     # Custom apps
-    "TrafficAnalysis",
     'rest_framework',
 ]
 
