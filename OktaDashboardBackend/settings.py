@@ -13,6 +13,7 @@ https://docs.djangoproject.com/en/5.1/ref/settings/
 import os
 from pathlib import Path
 import environ
+import mongoengine
 from mongoengine import connect
 
 # Base directory
