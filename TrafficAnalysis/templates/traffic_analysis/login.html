@@ -1,0 +1,76 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <title>Login - Traffic Analysis</title>
+    <style>
+        body {
+            background-color: #f8f9fa;
+        }
+        .login-container {
+            max-width: 450px;
+            margin: 100px auto;
+        }
+        .card {
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .card-header {
+            border-radius: 10px 10px 0 0;
+            background-color: #007bff;
+            color: white;
+            padding: 20px;
+        }
+        .okta-btn {
+            background-color: #00297A;
+            color: white;
+            border: none;
+            padding: 10px;
+            border-radius: 5px;
+            width: 100%;
+            margin-top: 20px;
+        }
+        .okta-btn:hover {
+            background-color: #001d5d;
+        }
+        .okta-logo {
+            height: 24px;
+            margin-right: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container login-container">
+        <div class="card">
+            <div class="card-header text-center">
+                <h3 class="mb-0">Traffic Analysis Dashboard</h3>
+            </div>
+            <div class="card-body p-4">
+                {% if messages %}
+                <div class="alert alert-info">
+                    {% for message in messages %}
+                    <p>{{ message }}</p>
+                    {% endfor %}
+                </div>
+                {% endif %}
+                
+                {% if error %}
+                <div class="alert alert-danger">{{ error }}</div>
+                {% endif %}
+                
+                <div class="text-center mb-4">
+                    <p class="lead">Sign in to access the dashboard</p>
+                </div>
+                
+                <a href="{% url 'okta_login' %}{% if next %}?next={{ next }}{% endif %}" class="btn okta-btn">
+                    <img src="https://www.okta.com/sites/default/files/media/image/2020-08/Okta_Logo_BrightBlue_Medium.png" alt="Okta" class="okta-logo">
+                    Sign in with Okta
+                </a>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
