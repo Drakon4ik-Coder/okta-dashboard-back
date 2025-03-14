@@ -68,3 +68,6 @@ class OktaAuthenticationTestCase(unittest.TestCase):
         self.assertEqual(response.status_code, 401)
         self.assertIn("error", response.json())
         self.assertEqual(response.json()["error"], "invalid_client")
+
+if __name__ == '__main__':
+    unittest.main()

@@ -31,30 +31,7 @@ staticfiles/
 # Environment variables
 .env
 .venv
-env/
-venv/
-ENV/
-
-# Keys and credentials
-/keys/
-*.pem
-
-# Logs
-/logs/
-*.log
-
-# IDE files
-.idea/
-.vscode/
-*.swp
-*.swo
-
-# Docker
-.docker/
-docker-volume/
-
-# MongoDB
-*.mongodb
-
-# Miscellaneous
-.DS_Store
+.env
+.pyc
+.env
+__pycache__/
