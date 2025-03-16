@@ -1,3 +1,5 @@
+from django.contrib import admin
+from django.urls import path, include
 """
 URL configuration for OktaDashboardBackend project.
 
@@ -15,8 +17,24 @@ Including another URLconf
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 from django.contrib import admin
-from django.urls import path
+from TrafficAnalysis import views
+from TrafficAnalysis.views import health_check
+from django.urls import path, include
+from okta_auth import views as auth_views
 
 urlpatterns = [
     path('admin/', admin.site.urls),
+    path('metrics/', include('django_prometheus.urls')),
+    path('', views.landing_page, name='landing_page'),
+    path('dashboard/', views.dashboard, name='dashboard'),
+    path('health/', health_check, name="health_check"),
+    path('api-auth/', include('rest_framework.urls')),
+    path('api/', include('TrafficAnalysis.urls')),
+    
+    # Authentication URLs
+    path('login/', auth_views.login_view, name='login'),
+    path('logout/', auth_views.logout_view, name='logout'),
+    path('okta/login/', auth_views.okta_login, name='okta_login'),
+    path('okta/callback', auth_views.okta_callback, name='okta_callback'),
+    path('okta/test/', auth_views.test, name='test_auth'),
 ]

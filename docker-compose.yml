@@ -8,10 +8,20 @@ services:
     volumes:
       - .:/app
     environment:
-      - MONGODB_URL=mongodb://mongodb:27017/okta_dashboard
+      # Environment variables passed from the host or an .env file
+      DJANGO_DEBUG: ${DJANGO_DEBUG:-False}
+      DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-localhost,127.0.0.1}
+      MONGOENGINE_DB: ${MONGOENGINE_DB:-okta_dashboard}
+      MONGODB_HOST: ${MONGODB_HOST:-mongodb://mongodb:27017/okta_dashboard}
+      DJANGO_SECURE_SSL_REDIRECT: ${DJANGO_SECURE_SSL_REDIRECT:-False}
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongo localhost:8000/test --quiet
+      interval: 10s
+      timeout: 5s
+      retries: 5
     depends_on:
       mongodb:
-        condition: service_healthy 
+        condition: service_healthy
 
   mongodb:
     image: mongo:latest
@@ -20,10 +30,19 @@ services:
     volumes:
       - mongodb_data:/data/db
     healthcheck:
-      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand({ ping: 1 })", "--quiet"]
       interval: 10s
       timeout: 5s
       retries: 5
+
+  prometheus:
+    image: prom/prometheus:latest
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+    ports:
+      - "9090:9090"
+    depends_on:
+      - web
 
 volumes:
   mongodb_data:
