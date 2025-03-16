@@ -2,6 +2,7 @@ from functools import wraps
 
 from django.shortcuts import render
 from django.http import JsonResponse
+from rest_framework.decorators import api_view
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
@@ -46,8 +47,8 @@ def landing_page(request):
 	"""Render the default landing page."""
 	return render(request, 'traffic_analysis/landing.html')
 
-
-@ratelimit_view(rate='10/m')
+@ratelimit(key='ip', rate='10/m')
+@api_view(['GET'])
 def health_check(request):
 	"""Health check endpoint for Docker/Kubernetes"""
 	return Response({"status": "healthy"}, status=200)
