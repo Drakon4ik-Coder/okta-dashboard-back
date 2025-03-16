@@ -13,13 +13,11 @@ https://docs.djangoproject.com/en/5.1/ref/settings/
 import os
 from pathlib import Path
 import mongoengine
+import pythonjsonlogger
 from pythonjsonlogger import jsonlogger
-
-
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
-
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.1/howto/deployment/checklist/
@@ -32,96 +30,93 @@ DEBUG = True
 
 ALLOWED_HOSTS = []
 
-
 # Application definition
 
 INSTALLED_APPS = [
-    'django.contrib.admin',
-    'django.contrib.auth',
-    'django.contrib.contenttypes',
-    'django.contrib.sessions',
-    'django.contrib.messages',
-    'django.contrib.staticfiles',
-    'TrafficAnalysis.apps.TrafficanalysisConfig',
-    'rest_framework',
+	'django.contrib.admin',
+	'django.contrib.auth',
+	'django.contrib.contenttypes',
+	'django.contrib.sessions',
+	'django.contrib.messages',
+	'django.contrib.staticfiles',
+	'TrafficAnalysis.apps.TrafficanalysisConfig',
+	'rest_framework',
 ]
 
 REST_FRAMEWORK = {
-    'DEFAULT_THROTTLE_CLASSES': [
-        'rest_framework.throttling.AnonRateThrottle',
-        'rest_framework.throttling.UserRateThrottle',
-    ],
-    'DEFAULT_THROTTLE_RATES': {
-        'anon': '100/day',   # anonymous users: 100 requests per day
-        'user': '1000/day',  # authenticated users: 1000 requests per day
-    }
+	'DEFAULT_THROTTLE_CLASSES': [
+		'rest_framework.throttling.AnonRateThrottle',
+		'rest_framework.throttling.UserRateThrottle',
+	],
+	'DEFAULT_THROTTLE_RATES': {
+		'anon': '100/day',  # anonymous users: 100 requests per day
+		'user': '1000/day',  # authenticated users: 1000 requests per day
+	}
 }
 
 MIDDLEWARE = [
-    'django.middleware.security.SecurityMiddleware',
-    'django.contrib.sessions.middleware.SessionMiddleware',
-    'django.middleware.common.CommonMiddleware',
-    'django.middleware.csrf.CsrfViewMiddleware',
-    'django.contrib.auth.middleware.AuthenticationMiddleware',
-    'django.contrib.messages.middleware.MessageMiddleware',
-    'django.middleware.clickjacking.XFrameOptionsMiddleware',
+	'django.middleware.security.SecurityMiddleware',
+	'django.contrib.sessions.middleware.SessionMiddleware',
+	'django.middleware.common.CommonMiddleware',
+	'django.middleware.csrf.CsrfViewMiddleware',
+	'django.contrib.auth.middleware.AuthenticationMiddleware',
+	'django.contrib.messages.middleware.MessageMiddleware',
+	'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
 ROOT_URLCONF = 'OktaDashboardBackend.urls'
 
 TEMPLATES = [
-    {
-        'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [BASE_DIR / 'templates']
+	{
+		'BACKEND': 'django.template.backends.django.DjangoTemplates',
+		'DIRS': [BASE_DIR / 'templates']
 		,
-        'APP_DIRS': True,
-        'OPTIONS': {
-            'context_processors': [
-                'django.template.context_processors.debug',
-                'django.template.context_processors.request',
-                'django.contrib.auth.context_processors.auth',
-                'django.contrib.messages.context_processors.messages',
-            ],
-        },
-    },
+		'APP_DIRS': True,
+		'OPTIONS': {
+			'context_processors': [
+				'django.template.context_processors.debug',
+				'django.template.context_processors.request',
+				'django.contrib.auth.context_processors.auth',
+				'django.contrib.messages.context_processors.messages',
+			],
+		},
+	},
 ]
 
 WSGI_APPLICATION = 'OktaDashboardBackend.wsgi.application'
-
 
 # Database
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
 
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
-    }
+	'default': {
+		'ENGINE': 'django.db.backends.sqlite3',
+		'NAME': BASE_DIR / 'db.sqlite3',
+	}
 }
 
 mongoengine.connect(
-    db='okta_dashboard',
-    host=os.environ.get('MONGODB_URL', 'mongodb://localhost:27017/okta_dashboard')
+	db='okta_dashboard',
+	host=os.environ.get('MONGODB_URL', 'mongodb://localhost:27017/okta_dashboard')
 )
 
 # Password validation
 # https://docs.djangoproject.com/en/5.1/ref/settings/#auth-password-validators
 
 AUTH_PASSWORD_VALIDATORS = [
-    {
-        'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
-    },
-    {
-        'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',
-    },
-    {
-        'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator',
-    },
-    {
-        'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',
-    },
+	{
+		'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
+	},
+	{
+		'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',
+	},
+	{
+		'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator',
+	},
+	{
+		'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',
+	},
 ]
-
 
 # Internationalization
 # https://docs.djangoproject.com/en/5.1/topics/i18n/
@@ -134,7 +129,6 @@ USE_I18N = True
 
 USE_TZ = True
 
-
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.1/howto/static-files/
 
@@ -146,45 +140,43 @@ STATIC_URL = 'static/'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 LOGGING = {
-    'version': 1,
-    'disable_existing_loggers': False,
-    'formatters': {
-        'verbose': {
-            'format': '[%(levelname)s] %(asctime)s %(module)s %(process)d %(thread)d: %(message)s'
-        },
-        'json': {
-            '()': jsonlogger.JsonFormatter,
-            'format': '%(levelname)s %(asctime)s %(module)s %(message)s'
-        },
-    },
-    'handlers': {
-        'console_debug': {
-            'class': 'logging.StreamHandler',
-            'formatter': 'verbose',
-        },
-        'console_json': {
-            'class': 'logging.StreamHandler',
-            'formatter': 'json',
-        },
-    },
-    'loggers': {
-        # Default Django logger for development/debugging
-        'django': {
-            'handlers': ['console_debug'],
-            'level': os.getenv('DJANGO_LOG_LEVEL', 'DEBUG'),
-            'propagate': True,
-        },
-        # Logger for API events with structured JSON output
-        'api': {
-            'handlers': ['console_json'],
-            'level': 'INFO',
-            'propagate': False,
-        },
-        # Logger for authentication events with structured JSON output
-        'authentication': {
-            'handlers': ['console_json'],
-            'level': 'INFO',
-            'propagate': False,
-        },
-    },
+	'version': 1,
+	'disable_existing_loggers': False,
+	"formatters": {
+		"verbose": {
+			"format": "{name} {levelname} {asctime} {module} {process:d} {thread:d} {message}",
+			"style": "{",
+		},
+		"simple": {
+			"format": "{levelname} {message}",
+			"style": "{",
+		},
+	},
+	"handlers": {
+		"file": {
+			"class": "logging.FileHandler",
+			"filename": "general.log",
+			"formatter": "verbose",
+		},
+	},
+	'loggers': {
+		# Default Django logger for development/debugging
+		'django': {
+			'handlers': ['file'],
+			'level': os.getenv('DJANGO_LOG_LEVEL', 'DEBUG'),
+			'propagate': True,
+		},
+		# Logger for API events with structured JSON output
+		'api': {
+			'handlers': ['file'],
+			'level': 'INFO',
+			'propagate': False,
+		},
+		# Logger for authentication events with structured JSON output
+		'authentication': {
+			'handlers': ['file'],
+			'level': 'INFO',
+			'propagate': False,
+		},
+	},
 }
