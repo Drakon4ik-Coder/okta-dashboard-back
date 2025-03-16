@@ -50,3 +50,6 @@ pathlib>=1.0.1
 # Documentation
 drf-yasg>=1.21.7
 python-json-logger~=3.2.1
+
+# Rate Limiting
+django-ratelimit~=4.1.0

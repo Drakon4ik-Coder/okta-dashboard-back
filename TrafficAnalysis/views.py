@@ -12,6 +12,7 @@ from TrafficAnalysis.serializers import OktaLogSerializer, OktaLogDetailSerializ
 import logging
 from collections import Counter
 from django.contrib.auth.decorators import login_required
+from django_ratelimit.decorators import ratelimit
 
 logger = logging.getLogger(__name__)
 
@@ -20,10 +21,12 @@ def dashboard(request):
     """Render the dashboard page."""
     return render(request, 'traffic_analysis/dashboard.html')
 
+@ratelimit(key='ip', rate='10/m')
 def landing_page(request):
     """Render the default landing page."""
     return render(request, 'traffic_analysis/landing.html')
 
+@ratelimit(key='ip', rate='10/m')
 def health_check(request):
     """Health check endpoint for Docker/Kubernetes"""
     return Response({"status": "healthy"}, status=200)

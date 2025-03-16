@@ -35,3 +35,5 @@ staticfiles/
 .pyc
 .env
 __pycache__/
+
+.idea/
