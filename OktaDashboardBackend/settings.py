@@ -52,7 +52,7 @@ INSTALLED_APPS = [
 	"django.contrib.staticfiles",
 	'TrafficAnalysis.apps.TrafficanalysisConfig',
 	'django_q',
-
+	'drf_yasg',
 	# Custom apps
 	'rest_framework',
 ]
