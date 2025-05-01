@@ -249,8 +249,8 @@ def oauth_callback(request: HttpRequest) -> HttpResponse:
         if 'expires_in' in token_response:
             request.session['token_expires_at'] = int(time.time()) + int(token_response.get('expires_in', 3600))
 
-        # Redirect to the next URL or events list
-        next_url = request.session.get('next_url', reverse('traffic_analysis:event_list'))
+        # Redirect to the next URL or dashboard
+        next_url = request.session.get('next_url', '/dashboard')
         if 'next_url' in request.session:
             del request.session['next_url']
             
