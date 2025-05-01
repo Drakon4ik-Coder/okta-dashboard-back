@@ -1,38 +1,76 @@
-# Django core
-django==5.2
-django-environ==0.11.2
-
-# Database
-mongoengine==0.27.0
-pymongo==4.6.1
-
-# REST API
-djangorestframework==3.14.0
-drf-yasg==1.21.7
-
-# Authentication
-okta==2.4.1
-
-# Background Tasks
-django-q==1.3.9
-
-# Performance and Monitoring
+aenum==3.1.16
+aiohappyeyeballs==2.6.1
+aiohttp==3.11.18
+aiosignal==1.3.2
+asgiref==3.8.1
+async-timeout==5.0.1
+attrs==25.3.0
+certifi==2025.4.26
+cffi==1.17.1
+charset-normalizer==3.4.1
+colorama==0.4.6
+coreapi==2.3.3
+coreschema==0.0.4
+cryptography==44.0.2
+Django==5.2
+django-debug-toolbar==4.3.0
+django-environ==0.12.0
+django-extensions==3.2.3
+django-filter==25.1
+django-picklefield==3.2
 django-prometheus==2.3.1
-whitenoise==6.6.0
-django-redis==5.4.0  
-
-# Logging
-python-json-logger==2.0.7
-
-# Security
+django-q2==1.6.2
 django-ratelimit==4.1.0
-django-cors-headers==4.3.1
-
-# Utils
-python-dateutil==2.8.2
-requests==2.31.0
-pytz==2023.3
-
-# Development
-pytest==7.4.3
-pytest-django==4.7.0
+djangorestframework==3.15.1
+dnspython==2.7.0
+drf-yasg==1.21.10
+exceptiongroup==1.2.2
+Faker==37.1.0
+flatdict==4.0.1
+frozenlist==1.6.0
+gunicorn==23.0.0
+idna==3.10
+inflection==0.5.1
+iniconfig==2.1.0
+itypes==1.2.0
+Jinja2==3.1.6
+jwcrypto==1.5.6
+loguru==0.7.3
+Markdown==3.5
+MarkupSafe==3.0.2
+mongoengine==0.29.1
+multidict==6.4.3
+numpy==2.2.5
+okta==2.9.12
+packaging==25.0
+pandas==2.2.3
+pathlib==1.0.1
+pluggy==1.5.0
+prometheus_client==0.21.1
+propcache==0.3.1
+pycparser==2.22
+pycryptodomex==3.22.0
+pydash==8.0.5
+PyJWT==2.10.1
+pymongo==4.12.1
+pytest==8.3.5
+pytest-django==4.11.1
+python-dateutil==2.9.0.post0
+python-dotenv==1.1.0
+python-json-logger==3.2.1
+pytz==2025.2
+PyYAML==6.0.2
+redis==5.2.1
+requests==2.32.3
+sentry-sdk==2.27.0
+six==1.17.0
+sqlparse==0.5.3
+tomli==2.2.1
+typing_extensions==4.13.2
+tzdata==2025.2
+uritemplate==4.1.1
+urllib3==2.4.0
+whitenoise==6.9.0
+win32_setctime==1.2.0
+xmltodict==0.14.2
+yarl==1.20.0
