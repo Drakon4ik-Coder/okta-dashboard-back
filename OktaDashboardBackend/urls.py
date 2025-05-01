@@ -1,8 +1,13 @@
 from django.contrib import admin
 from django.urls import path, include
-"""
-URL configuration for OktaDashboardBackend project.
+from django.conf import settings
+from django.conf.urls.static import static
+from django.http import JsonResponse
+from traffic_analysis.views.event_views import EventListView
+from traffic_analysis.views.home_views import HomePageView
+from okta_auth.views import oauth_callback, login_view, logout_view
 
+<<<<<<< Updated upstream
 The `urlpatterns` list routes URLs to views. For more information please see:
     https://docs.djangoproject.com/en/5.1/topics/http/urls/
 Examples:
@@ -37,16 +42,16 @@ schema_view = get_schema_view(
     public=True,
     permission_classes=(permissions.AllowAny,),
 )
+=======
+# Health check view for monitoring services
+def health_check(request):
+    return JsonResponse({"status": "ok", "service": "okta-dashboard-backend"})
+>>>>>>> Stashed changes
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('metrics/', include('django_prometheus.urls')),
-    path('', views.landing_page, name='landing_page'),
-    path('dashboard/', views.dashboard, name='dashboard'),
-    path('health/', health_check, name="health_check"),
-    path('api-auth/', include('rest_framework.urls')),
-    path('api/', include('TrafficAnalysis.urls')),
     
+<<<<<<< Updated upstream
     # Authentication URLs
     path('login/', auth_views.login_view, name='login'),
     path('logout/', auth_views.logout_view, name='logout'),
@@ -58,3 +63,28 @@ urlpatterns = [
     path('docs/', schema_view.with_ui('swagger', cache_timeout=0), name='schema-swagger-ui'),
     path('redoc/', schema_view.with_ui('redoc', cache_timeout=0), name='schema-redoc'),
 ]
+=======
+    # API endpoints
+    path('api/', include('api.urls')),
+    
+    # Okta OAuth routes
+    path('okta/login/', include('okta_auth.urls')),
+    path('okta/callback/', oauth_callback, name='okta_callback'),
+    
+    # Login and logout URLs - use proper authentication views
+    path('login/', login_view, name='login'),
+    path('logout/', logout_view, name='logout'),
+    
+    # Traffic Analysis app - updated to use new app
+    path('', include('traffic_analysis.urls')),
+    
+    # Monitoring and health check endpoints
+    path('health/', health_check, name='health-check'),
+    path('health/', health_check, name='health_check'),
+    path('metrics/', include('django_prometheus.urls')),
+] + static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
+
+# Add handler for errors - updated to use new app
+handler404 = 'traffic_analysis.views.error_views.handler404'
+handler500 = 'traffic_analysis.views.error_views.handler500'
+>>>>>>> Stashed changes
