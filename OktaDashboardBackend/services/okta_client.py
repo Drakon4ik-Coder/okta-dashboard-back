@@ -14,28 +14,46 @@ class OktaApiClient:
 
     This client provides methods to fetch user logs and security events
     from the Okta API with proper authentication and error handling.
+    
+    Supports both OAuth 2.0 tokens (preferred for zero-trust) and API tokens.
     """
 
-    def __init__(self, api_token: Optional[str] = None, org_url: Optional[str] = None):
+    def __init__(self, api_token: Optional[str] = None, org_url: Optional[str] = None, oauth_token: Optional[str] = None):
         """
         Initialize the Okta API client.
 
         Args:
-            api_token: The Okta API token for authentication
+            api_token: The Okta API token for authentication (legacy approach)
             org_url: The Okta organization URL
+            oauth_token: OAuth 2.0 access token (preferred for zero-trust model)
         """
         self.api_token = api_token or settings.OKTA_API_TOKEN
         self.org_url = org_url or settings.OKTA_ORG_URL
+        self.oauth_token = oauth_token
         self.base_url = f"{self.org_url}/api/v1"
-        self.headers = {
-            "Accept": "application/json",
-            "Content-Type": "application/json",
-            "Authorization": f"SSWS {self.api_token}"
-        }
+        
+        # Use OAuth token if provided (zero-trust approach), otherwise use API token
+        if self.oauth_token:
+            logger.info("Using OAuth token for Okta API authentication (zero-trust approach)")
+            self.headers = {
+                "Accept": "application/json",
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {self.oauth_token}"
+            }
+        else:
+            logger.info("Using API token for Okta API authentication")
+            self.headers = {
+                "Accept": "application/json",
+                "Content-Type": "application/json",
+                "Authorization": f"SSWS {self.api_token}"
+            }
 
     def _make_request(self, endpoint: str, params: Optional[Dict] = None) -> List[Dict]:
         """
-        Make a GET request to the Okta API.
+        Make a GET request to the Okta API with zero-trust principles.
+        
+        In a zero-trust model, we don't assume the connection or token is still valid,
+        so we handle token expiry and other authentication issues explicitly.
 
         Args:
             endpoint: API endpoint to call
@@ -52,6 +70,17 @@ class OktaApiClient:
 
         try:
             response = requests.get(url, headers=self.headers, params=params)
+            
+            # Handle authentication errors specifically to provide better feedback
+            if response.status_code == 401:
+                if self.oauth_token:
+                    logger.error("OAuth token rejected or expired")
+                    raise Exception("OAuth token unauthorized - token may have expired or been revoked")
+                else:
+                    logger.error("API token rejected")
+                    raise Exception("API token unauthorized - token may be invalid or revoked")
+            
+            # Handle other error statuses
             response.raise_for_status()
 
             # Add results from current page
@@ -66,6 +95,10 @@ class OktaApiClient:
             while "next" in response.links:
                 next_url = response.links["next"]["url"]
                 response = requests.get(next_url, headers=self.headers)
+                # Re-check authentication for each request (zero-trust approach)
+                if response.status_code == 401:
+                    logger.error("Authentication token became invalid during pagination")
+                    raise Exception("Authentication failed during paginated request - token may have expired")
                 response.raise_for_status()
                 all_results.extend(response.json())
 
@@ -74,7 +107,7 @@ class OktaApiClient:
         except requests.exceptions.RequestException as e:
             logger.error(f"Error making request to Okta API: {e}")
             raise Exception(f"Failed to retrieve data from Okta API: {str(e)}")
-
+    
     def get_user_logs(self,
                       user_id: Optional[str] = None,
                       since: Optional[Union[datetime, str]] = None,

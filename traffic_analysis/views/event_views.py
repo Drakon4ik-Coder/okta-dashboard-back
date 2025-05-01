@@ -1,0 +1,264 @@
+"""
+Views for handling Okta event data requests.
+
+This module contains API view classes for querying and displaying Okta event data.
+"""
+from datetime import datetime, timedelta
+from typing import Dict, Any, List
+
+from django.utils import timezone
+from rest_framework import status
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.pagination import PageNumberPagination
+
+from traffic_analysis.models import OktaEvent, OktaMetrics
+from traffic_analysis.serializers.event_serializers import (
+    OktaEventSerializer,
+    OktaEventDetailSerializer,
+    OktaMetricsSerializer
+)
+
+import logging
+from django.views.generic import ListView
+from django.contrib.auth.mixins import LoginRequiredMixin
+from django.db.models import Count, Q
+from traffic_analysis.services.event_service import EventService
+
+logger = logging.getLogger(__name__)
+
+class StandardResultsSetPagination(PageNumberPagination):
+    """
+    Standard pagination for event listing endpoints.
+    """
+    page_size = 25
+    page_size_query_param = 'page_size'
+    max_page_size = 100
+
+
+class EventsPageView(LoginRequiredMixin, ListView):
+    """
+    View for displaying and filtering Okta events in a user-friendly UI.
+    This view uses the same data as the API endpoints but renders HTML templates.
+    """
+    template_name = 'traffic_analysis/events/events_list.html'
+    context_object_name = 'events'
+    paginate_by = 20
+    login_url = '/login/'
+    
+    def get_queryset(self):
+        """Get filtered events based on request parameters"""
+        # Get filter parameters
+        event_type = self.request.GET.get('event_type', '')
+        severity = self.request.GET.get('severity', '')
+        days = int(self.request.GET.get('days', 7))
+        search = self.request.GET.get('search', '')
+        
+        # Calculate date range
+        end_date = datetime.now()
+        start_date = end_date - timedelta(days=days)
+        
+        # Base queryset with time range
+        queryset = OktaEvent.get_events_by_timeframe(start_date, end_date)
+        
+        # Apply additional filters if provided
+        if event_type:
+            queryset = queryset.filter(event_type=event_type)
+        
+        if severity:
+            queryset = queryset.filter(severity=severity)
+        
+        if search:
+            queryset = queryset.filter(
+                Q(event_type__icontains=search) |
+                Q(display_message__icontains=search) |
+                Q(ip_address__icontains=search)
+            )
+        
+        return queryset.order_by('-published')
+    
+    def get_context_data(self, **kwargs):
+        """Add extra context data for template rendering"""
+        context = super().get_context_data(**kwargs)
+        
+        # Get all events for statistics (with same filters except pagination)
+        queryset = self.get_queryset()
+        
+        # Get filter parameters to add to context
+        context['selected_event_type'] = self.request.GET.get('event_type', '')
+        context['selected_severity'] = self.request.GET.get('severity', '')
+        context['days'] = int(self.request.GET.get('days', 7))
+        context['search_query'] = self.request.GET.get('search', '')
+        context['date_range_days'] = context['days']
+        
+        # Add statistics for the filter results
+        context['total_events'] = queryset.count()
+        context['high_severity_count'] = queryset.filter(severity='HIGH').count()
+        context['medium_severity_count'] = queryset.filter(severity='MEDIUM').count()
+        
+        # Get available filter options
+        service = EventService()
+        context['available_event_types'] = service.get_event_types()
+        context['available_severities'] = ['HIGH', 'MEDIUM', 'LOW', 'INFO']
+        
+        return context
+
+
+class EventListView(APIView):
+    """
+    API view for listing Okta events with filtering and pagination.
+    """
+    permission_classes = [IsAuthenticated]
+    pagination_class = StandardResultsSetPagination
+    
+    def get(self, request):
+        """
+        Handle GET requests for event listing.
+        
+        Supports filtering by time range, event type, and severity.
+        
+        Args:
+            request: HTTP request object
+            
+        Returns:
+            Response with serialized events or error message
+        """
+        # Get filtering parameters from query string
+        days = int(request.query_params.get('days', 7))
+        event_type = request.query_params.get('event_type')
+        severity = request.query_params.get('severity')
+        ip_address = request.query_params.get('ip_address')
+        
+        # Calculate time range
+        end_date = timezone.now()
+        start_date = end_date - timedelta(days=days)
+        
+        try:
+            # Get page parameters
+            page = int(request.query_params.get('page', 1))
+            page_size = int(request.query_params.get('page_size', 25))
+            
+            # Use the optimized method from the model instead of direct query
+            events = OktaEvent.get_events_by_timeframe(
+                start_time=start_date,
+                end_time=end_date,
+                event_type=event_type,
+                limit=page_size,
+                page=page
+            )
+            
+            # Get total count for pagination
+            # Build query filter for count
+            query_filters = {
+                "published__gte": start_date,
+                "published__lte": end_date,
+            }
+            
+            if event_type:
+                query_filters["event_type"] = event_type
+            
+            if severity:
+                query_filters["severity"] = severity
+            
+            if ip_address:
+                query_filters["ip_address"] = ip_address
+                
+            total_events = OktaEvent.objects(**query_filters).count()
+            total_pages = (total_events + page_size - 1) // page_size
+            
+            # Serialize data
+            serializer = OktaEventSerializer(events, many=True)
+            
+            # Construct paginated response
+            result = {
+                'count': total_events,
+                'total_pages': total_pages,
+                'current_page': page,
+                'next': page + 1 if page < total_pages else None,
+                'previous': page - 1 if page > 1 else None,
+                'results': serializer.data
+            }
+            
+            return Response(result)
+        
+        except Exception as e:
+            return Response(
+                {"error": f"Failed to fetch events: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+
+class EventDetailView(APIView):
+    """
+    API view for retrieving details of a specific Okta event.
+    """
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request, event_id):
+        """
+        Handle GET request for a specific event by ID.
+        
+        Args:
+            request: HTTP request object
+            event_id: ID of the event to retrieve
+            
+        Returns:
+            Response with serialized event or error message
+        """
+        try:
+            event = OktaEvent.objects(event_id=event_id).first()
+            
+            if not event:
+                return Response(
+                    {"error": f"Event with ID {event_id} not found"},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+                
+            serializer = OktaEventDetailSerializer(event)
+            return Response(serializer.data)
+            
+        except Exception as e:
+            return Response(
+                {"error": f"Failed to fetch event details: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+
+class EventMetricsView(APIView):
+    """
+    API view for retrieving aggregated event metrics.
+    """
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        """
+        Handle GET request for event metrics.
+        
+        Supports filtering by time period and metric type.
+        
+        Args:
+            request: HTTP request object
+            
+        Returns:
+            Response with serialized metrics or error message
+        """
+        metric_type = request.query_params.get('metric_type', 'login_attempts')
+        time_period = request.query_params.get('time_period', 'daily')
+        limit = int(request.query_params.get('limit', 30))
+        
+        try:
+            metrics = OktaMetrics.get_recent_metrics(
+                metric_type=metric_type,
+                time_period=time_period,
+                limit=limit
+            )
+            
+            serializer = OktaMetricsSerializer(metrics, many=True)
+            return Response(serializer.data)
+            
+        except Exception as e:
+            return Response(
+                {"error": f"Failed to fetch metrics: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
