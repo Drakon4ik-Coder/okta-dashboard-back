@@ -53,3 +53,9 @@ python-json-logger~=3.2.1
 
 # Rate Limiting
 django-ratelimit~=4.1.0
+
+# Added missing dependencies
+chart.js>=3.7.1  # For data visualization
+font-awesome>=6.0.0  # For icons
+alpinejs>=3.10.3  # For animations and interactivity
+aos>=2.3.1  # Animation library
