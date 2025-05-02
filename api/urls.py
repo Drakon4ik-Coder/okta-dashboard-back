@@ -2,8 +2,9 @@ from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from rest_framework.documentation import include_docs_urls
 
-# Import avg_login_time view
-from login_tracking.api_views import avg_login_time
+# Import okta_login_time view
+from login_tracking.api_views import okta_login_time
+from login_tracking.api_views import okta_event_hook
 
 # Import API views
 from .v1.views.forensics_views import ForensicEventsViewSet
@@ -32,7 +33,11 @@ v1_router.register(r'events', EventsViewSet, basename='events')
 
 # API URL patterns
 urlpatterns = [
-    path('v1/metrics/login_time/', avg_login_time, name='avg_login_time'),
+    # Okta Event Hook (must be first)
+    path('v1/hooks/okta-events/', okta_event_hook, name='okta_event_hook'),
+
+    # Average login time endpoint
+    path('v1/metrics/okta_login_time/', okta_login_time, name='okta_login_time'),
 
     # API version 1 routes - register via DefaultRouter
     path('v1/', include((v1_router.urls, 'v1'))),

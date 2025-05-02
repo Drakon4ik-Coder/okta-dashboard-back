@@ -36,6 +36,9 @@ OKTA_ORG_URL = env("OKTA_ORG_URL", default=None)
 OKTA_CLIENT_ID = env("OKTA_CLIENT_ID", default=None)
 OKTA_CLIENT_SECRET = env("OKTA_CLIENT_SECRET", default=None)
 
+# Okta WebHook
+OKTA_EVENT_HOOK_SECRET = os.environ["OKTA_EVENT_HOOK_SECRET"]
+
 # Okta Settings
 OKTA_AUTHORIZATION_ENDPOINT = "https://dev-72300026.okta.com/oauth2/v1/authorize"
 OKTA_TOKEN_ENDPOINT = "https://dev-72300026.okta.com/oauth2/v1/token"
@@ -148,9 +151,6 @@ MIDDLEWARE = [
 	
 	# Metrics middleware last
 	"django_prometheus.middleware.PrometheusAfterMiddleware",
-	'django.contrib.auth.middleware.AuthenticationMiddleware',
-	'login_tracking.middleware.LoginTimingMiddleware',
-	'django_prometheus.middleware.PrometheusAfterMiddleware',
 ]
 
 # Root URL configuration
