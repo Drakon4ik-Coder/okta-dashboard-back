@@ -1,0 +1,648 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Security Alert Dashboard</title>
+    <!-- Fonts: MongoDB uses Euclid Circular A -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Euclid+Circular+A:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Modern CSS frameworks -->
+    <link rel="stylesheet" href="{% static 'rest_framework/css/bootstrap.min.css' %}">
+    <link rel="stylesheet" href="{% static 'traffic_analysis/css/font-awesome.min.css' %}">
+    <link rel="stylesheet" href="{% static 'traffic_analysis/css/chart.min.css' %}">
+    <link rel="stylesheet" href="{% static 'traffic_analysis/css/dashboard.css' %}" nonce="{{ nonce }}">
+</head>
+<body>
+    <!-- Sidebar Toggle Button -->
+    <div class="sidebar-toggle">
+        <i class="fas fa-bars"></i>
+    </div>
+    
+    <!-- Sidebar -->
+    <div class="sidebar">
+        <div class="sidebar-header">
+            <a href="/dashboard/" class="sidebar-brand">
+                Okta<span>Analytics</span>
+            </a>
+        </div>
+        
+        <div class="pt-3">
+            <ul class="nav flex-column">
+                <li class="nav-item">
+                    <a class="nav-link" href="/dashboard/">
+                        <i class="fas fa-chart-pie"></i>
+                        <span>Dashboard</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="/events/">
+                        <i class="fas fa-list-alt"></i>
+                        <span>Events</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="/users/">
+                        <i class="fas fa-users"></i>
+                        <span>Users</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link active" href="/alerts/">
+                        <i class="fas fa-bell"></i>
+                        <span>Alerts</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="/metrics/">
+                        <i class="fas fa-chart-line"></i>
+                        <span>Metrics</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="/reports/">
+                        <i class="fas fa-file-alt"></i>
+                        <span>Reports</span>
+                    </a>
+                </li>
+                <li class="nav-item mt-5">
+                    <a class="nav-link" href="/settings/">
+                        <i class="fas fa-cog"></i>
+                        <span>Settings</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="/logout/">
+                        <i class="fas fa-sign-out-alt"></i>
+                        <span>Logout</span>
+                    </a>
+                </li>
+            </ul>
+        </div>
+    </div>
+    
+    <!-- Main Content -->
+    <div class="main-content">
+        <!-- Topbar -->
+        <div class="topbar">
+            <div>
+                <h1 class="page-title">Security Alerts</h1>
+                <p class="page-description">Monitor and manage security alerts from your Okta environment.</p>
+            </div>
+            <div class="user-dropdown">
+                <div class="user-info">
+                    <div class="user-name">Admin User</div>
+                    <div class="user-role">Administrator</div>
+                </div>
+                <div class="user-avatar">A</div>
+            </div>
+        </div>
+
+        <!-- Stats Overview -->
+        <div class="row">
+            <div class="col-md-3">
+                <div class="stat-card">
+                    <div class="stat-header">
+                        <div class="stat-icon icon-primary">
+                            <i class="fas fa-bell"></i>
+                        </div>
+                        <div>
+                            <div class="stat-title">TOTAL ALERTS</div>
+                            <div class="stat-value">{{ total_alerts }}</div>
+                        </div>
+                    </div>
+                    <div class="stat-footer">
+                        <div class="stat-trend trend-up">
+                            <i class="fas fa-arrow-up mr-1"></i> 12.3%
+                        </div>
+                        <div class="stat-period">vs. previous 30 days</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="stat-card">
+                    <div class="stat-header">
+                        <div class="stat-icon icon-danger">
+                            <i class="fas fa-radiation"></i>
+                        </div>
+                        <div>
+                            <div class="stat-title">CRITICAL ALERTS</div>
+                            <div class="stat-value">{{ critical_alerts }}</div>
+                        </div>
+                    </div>
+                    <div class="stat-footer">
+                        <div class="stat-trend trend-down">
+                            <i class="fas fa-arrow-down mr-1"></i> 5.7%
+                        </div>
+                        <div class="stat-period">vs. previous 30 days</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="stat-card">
+                    <div class="stat-header">
+                        <div class="stat-icon icon-warning">
+                            <i class="fas fa-exclamation-triangle"></i>
+                        </div>
+                        <div>
+                            <div class="stat-title">HIGH ALERTS</div>
+                            <div class="stat-value">{{ high_alerts }}</div>
+                        </div>
+                    </div>
+                    <div class="stat-footer">
+                        <div class="stat-trend trend-up">
+                            <i class="fas fa-arrow-up mr-1"></i> 8.2%
+                        </div>
+                        <div class="stat-period">vs. previous 30 days</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="stat-card">
+                    <div class="stat-header">
+                        <div class="stat-icon icon-success">
+                            <i class="fas fa-check-circle"></i>
+                        </div>
+                        <div>
+                            <div class="stat-title">ALERT RULES</div>
+                            <div class="stat-value">12</div>
+                        </div>
+                    </div>
+                    <div class="stat-footer">
+                        <div class="stat-trend trend-neutral">
+                            <i class="fas fa-minus mr-1"></i> 0%
+                        </div>
+                        <div class="stat-period">vs. previous 30 days</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Alert Severity Distribution -->
+        <div class="row">
+            <div class="col-lg-4">
+                <div class="content-card">
+                    <div class="card-header">
+                        <h2 class="card-title">Alert Distribution</h2>
+                    </div>
+                    <div class="card-body">
+                        <div class="chart-container">
+                            <canvas id="alertDistributionChart"></canvas>
+                        </div>
+                        <div class="row text-center mt-4">
+                            <div class="col-3">
+                                <div class="stat-value color-critical">{{ critical_alerts }}</div>
+                                <div class="stat-title">Critical</div>
+                            </div>
+                            <div class="col-3">
+                                <div class="stat-value color-high">{{ high_alerts }}</div>
+                                <div class="stat-title">High</div>
+                            </div>
+                            <div class="col-3">
+                                <div class="stat-value color-medium">{{ medium_alerts }}</div>
+                                <div class="stat-title">Medium</div>
+                            </div>
+                            <div class="col-3">
+                                <div class="stat-value color-low">{{ low_alerts }}</div>
+                                <div class="stat-title">Low</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-8">
+                <div class="content-card">
+                    <div class="card-header">
+                        <h2 class="card-title">Alert Trends</h2>
+                    </div>
+                    <div class="card-body">
+                        <div class="chart-container">
+                            <canvas id="alertTrendChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Alert Management Tabs -->
+        <div class="content-card mt-4">
+            <div class="card-header">
+                <h2 class="card-title">Alert Management</h2>
+                <div class="tab-buttons">
+                    <button class="tab-button active" data-tab="active-alerts">Active Alerts</button>
+                    <button class="tab-button" data-tab="alert-rules">Alert Rules</button>
+                    <button class="tab-button" data-tab="alert-history">Alert History</button>
+                </div>
+            </div>
+            <div class="card-body p-0">
+                <div id="active-alerts" class="tab-content active">
+                    <!-- Search and Filter -->
+                    <div class="p-3">
+                        <div class="search-section">
+                            <div class="search-input">
+                                <i class="fas fa-search"></i>
+                                <input type="text" placeholder="Search alerts...">
+                            </div>
+                            <button class="filter-button">
+                                <i class="fas fa-filter"></i> Filter
+                            </button>
+                            <button class="filter-button">
+                                <i class="fas fa-download"></i> Export
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Alert List -->
+                    <div class="p-3">
+                        <!-- Critical Alert -->
+                        <div class="alert-card alert-critical">
+                            <div class="alert-header">
+                                <div class="alert-title">
+                                    <i class="fas fa-radiation icon-color-critical"></i>
+                                    Brute Force Attack Detected
+                                </div>
+                                <span class="alert-severity severity-critical">Critical</span>
+                            </div>
+                            <div class="alert-message">
+                                Multiple failed login attempts (25) detected for user john.doe@example.com from multiple IP addresses within a short time period.
+                            </div>
+                            <div class="alert-details">
+                                <span><i class="fas fa-user mr-1"></i> john.doe@example.com</span>
+                                <span><i class="fas fa-globe mr-1"></i> Multiple IPs</span>
+                                <span><i class="fas fa-calendar-alt mr-1"></i> May 1, 2025 10:23 AM</span>
+                            </div>
+                            <div class="alert-footer">
+                                <div class="alert-status status-new">New</div>
+                                <div>
+                                    <button class="btn btn-sm btn-outline-secondary mr-1">
+                                        <i class="fas fa-eye"></i> View Details
+                                    </button>
+                                    <button class="btn btn-sm btn-primary">
+                                        <i class="fas fa-check"></i> Mark as Investigating
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- High Alert -->
+                        <div class="alert-card alert-high">
+                            <div class="alert-header">
+                                <div class="alert-title">
+                                    <i class="fas fa-exclamation-triangle icon-color-high"></i>
+                                    Suspicious Login Location
+                                </div>
+                                <span class="alert-severity severity-high">High</span>
+                            </div>
+                            <div class="alert-message">
+                                User sarah.smith@example.com logged in from an unusual location (Moscow, Russia) that does not match their typical access pattern.
+                            </div>
+                            <div class="alert-details">
+                                <span><i class="fas fa-user mr-1"></i> sarah.smith@example.com</span>
+                                <span><i class="fas fa-globe mr-1"></i> 192.168.45.12</span>
+                                <span><i class="fas fa-calendar-alt mr-1"></i> Apr 30, 2025 08:45 PM</span>
+                            </div>
+                            <div class="alert-footer">
+                                <div class="alert-status status-investigating">Investigating</div>
+                                <div>
+                                    <button class="btn btn-sm btn-outline-secondary mr-1">
+                                        <i class="fas fa-eye"></i> View Details
+                                    </button>
+                                    <button class="btn btn-sm btn-success">
+                                        <i class="fas fa-check-circle"></i> Resolve
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Medium Alert -->
+                        <div class="alert-card alert-medium">
+                            <div class="alert-header">
+                                <div class="alert-title">
+                                    <i class="fas fa-exclamation-circle icon-color-medium"></i>
+                                    MFA Disabled
+                                </div>
+                                <span class="alert-severity severity-medium">Medium</span>
+                            </div>
+                            <div class="alert-message">
+                                User michael.jackson@example.com disabled their multi-factor authentication. This could potentially reduce account security.
+                            </div>
+                            <div class="alert-details">
+                                <span><i class="fas fa-user mr-1"></i> michael.jackson@example.com</span>
+                                <span><i class="fas fa-globe mr-1"></i> 10.45.12.78</span>
+                                <span><i class="fas fa-calendar-alt mr-1"></i> Apr 29, 2025 03:12 PM</span>
+                            </div>
+                            <div class="alert-footer">
+                                <div class="alert-status status-resolved">Resolved</div>
+                                <div>
+                                    <button class="btn btn-sm btn-outline-secondary">
+                                        <i class="fas fa-eye"></i> View Details
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="alert-rules" class="tab-content">
+                    <div class="p-3">
+                        <button class="btn btn-primary mb-4">
+                            <i class="fas fa-plus"></i> Create New Rule
+                        </button>
+                        
+                        <!-- Rule cards -->
+                        <div class="rule-card">
+                            <div class="rule-header">
+                                <div class="rule-title">Brute Force Attack Detection</div>
+                                <label class="rule-switch">
+                                    <input type="checkbox" checked>
+                                    <span class="slider"></span>
+                                </label>
+                            </div>
+                            <div class="rule-details">
+                                Detects multiple failed login attempts for the same user in a short time period from different IP addresses.
+                            </div>
+                            <div class="rule-conditions">
+                                <div class="condition-item">
+                                    <span class="condition-badge">if</span>
+                                    <span>Failed login attempts > 15</span>
+                                </div>
+                                <div class="condition-item">
+                                    <span class="condition-badge">and</span>
+                                    <span>Time period < 5 minutes</span>
+                                </div>
+                                <div class="condition-item">
+                                    <span class="condition-badge">and</span>
+                                    <span>From > 3 distinct IP addresses</span>
+                                </div>
+                                <div class="condition-item">
+                                    <span class="condition-badge">then</span>
+                                    <span>Create CRITICAL alert</span>
+                                </div>
+                            </div>
+                            <div class="rule-footer">
+                                <div>
+                                    <span class="alert-severity severity-critical">Critical</span>
+                                    <span class="ml-2">Last triggered: 2 hours ago</span>
+                                </div>
+                                <div>
+                                    <button class="btn btn-sm btn-outline-secondary">
+                                        <i class="fas fa-edit"></i> Edit
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="rule-card">
+                            <div class="rule-header">
+                                <div class="rule-title">Unusual Login Location</div>
+                                <label class="rule-switch">
+                                    <input type="checkbox" checked>
+                                    <span class="slider"></span>
+                                </label>
+                            </div>
+                            <div class="rule-details">
+                                Detects when a user logs in from a location that doesn't match their typical access pattern.
+                            </div>
+                            <div class="rule-conditions">
+                                <div class="condition-item">
+                                    <span class="condition-badge">if</span>
+                                    <span>Login from new country</span>
+                                </div>
+                                <div class="condition-item">
+                                    <span class="condition-badge">and</span>
+                                    <span>User has no history in this country</span>
+                                </div>
+                                <div class="condition-item">
+                                    <span class="condition-badge">then</span>
+                                    <span>Create HIGH alert</span>
+                                </div>
+                            </div>
+                            <div class="rule-footer">
+                                <div>
+                                    <span class="alert-severity severity-high">High</span>
+                                    <span class="ml-2">Last triggered: 16 hours ago</span>
+                                </div>
+                                <div>
+                                    <button class="btn btn-sm btn-outline-secondary">
+                                        <i class="fas fa-edit"></i> Edit
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="alert-history" class="tab-content">
+                    <div class="p-3">
+                        <div class="search-section">
+                            <div class="search-input">
+                                <i class="fas fa-search"></i>
+                                <input type="text" placeholder="Search alert history...">
+                            </div>
+                            <button class="filter-button">
+                                <i class="fas fa-calendar-alt"></i> Date Range
+                            </button>
+                            <button class="filter-button">
+                                <i class="fas fa-download"></i> Export
+                            </button>
+                        </div>
+                        
+                        <!-- Historical alerts table -->
+                        <div class="table-responsive mt-3">
+                            <table class="table">
+                                <thead>
+                                    <tr>
+                                        <th>Alert</th>
+                                        <th>Severity</th>
+                                        <th>User</th>
+                                        <th>Time</th>
+                                        <th>Resolution</th>
+                                        <th>Resolved By</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td>Suspicious API Access</td>
+                                        <td><span class="alert-severity severity-high">High</span></td>
+                                        <td>api.service@example.com</td>
+                                        <td>Apr 28, 2025 11:23 AM</td>
+                                        <td>False Positive</td>
+                                        <td>Admin User</td>
+                                        <td>
+                                            <button class="btn btn-sm btn-outline-primary">
+                                                <i class="fas fa-eye"></i>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td>Admin Privilege Change</td>
+                                        <td><span class="alert-severity severity-medium">Medium</span></td>
+                                        <td>system.admin@example.com</td>
+                                        <td>Apr 25, 2025 03:45 PM</td>
+                                        <td>Authorized Change</td>
+                                        <td>Admin User</td>
+                                        <td>
+                                            <button class="btn btn-sm btn-outline-primary">
+                                                <i class="fas fa-eye"></i>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td>Excessive Failed MFA</td>
+                                        <td><span class="alert-severity severity-critical">Critical</span></td>
+                                        <td>karen.walker@example.com</td>
+                                        <td>Apr 22, 2025 09:12 AM</td>
+                                        <td>User Training</td>
+                                        <td>Security Analyst</td>
+                                        <td>
+                                            <button class="btn btn-sm btn-outline-primary">
+                                                <i class="fas fa-eye"></i>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="card-footer">
+                <a href="#" class="btn btn-sm btn-primary">View All Alerts</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- JavaScript -->
+    <script src="{% static 'rest_framework/js/jquery-3.7.1.min.js' %}"></script>
+    <script src="{% static 'rest_framework/js/bootstrap.min.js' %}"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.7.1/dist/chart.min.js" nonce="{{ nonce }}"></script>
+    <script nonce="{{ nonce }}">
+        // Toggle sidebar on mobile
+        document.querySelector('.sidebar-toggle').addEventListener('click', function() {
+            document.querySelector('.sidebar').classList.toggle('show');
+        });
+        
+        // Alert Distribution Chart
+        const alertCtx = document.getElementById('alertDistributionChart').getContext('2d');
+        const alertData = {
+            labels: ['Critical', 'High', 'Medium', 'Low'],
+            datasets: [{
+                data: [Number('{{ critical_alerts }}'), Number('{{ high_alerts }}'), Number('{{ medium_alerts }}'), Number('{{ low_alerts }}')],
+                backgroundColor: [
+                    '#DB3030',
+                    '#EF6C00',
+                    '#FFCA28',
+                    '#889392'
+                ],
+                borderColor: 'white',
+                borderWidth: 2
+            }]
+        };
+        
+        const alertChart = new Chart(alertCtx, {
+            type: 'pie',
+            data: alertData,
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: {
+                            padding: 20,
+                            usePointStyle: true,
+                            pointStyle: 'circle'
+                        }
+                    }
+                }
+            }
+        });
+        
+        // Alert Trend Chart
+        const trendCtx = document.getElementById('alertTrendChart').getContext('2d');
+        const trendChart = new Chart(trendCtx, {
+            type: 'line',
+            data: {
+                labels: ['Apr 25', 'Apr 26', 'Apr 27', 'Apr 28', 'Apr 29', 'Apr 30', 'May 1'],
+                datasets: [
+                    {
+                        label: 'Critical',
+                        data: [1, 0, 2, 0, 0, 1, 1],
+                        borderColor: '#DB3030',
+                        backgroundColor: 'rgba(219, 48, 48, 0.1)',
+                        tension: 0.4,
+                        pointBackgroundColor: '#DB3030',
+                        pointBorderColor: '#fff',
+                        pointBorderWidth: 2,
+                        fill: true
+                    },
+                    {
+                        label: 'High',
+                        data: [3, 2, 1, 4, 2, 3, 2],
+                        borderColor: '#EF6C00',
+                        backgroundColor: 'rgba(239, 108, 0, 0.1)',
+                        tension: 0.4,
+                        pointBackgroundColor: '#EF6C00',
+                        pointBorderColor: '#fff',
+                        pointBorderWidth: 2,
+                        fill: true
+                    },
+                    {
+                        label: 'Medium',
+                        data: [4, 3, 5, 3, 4, 2, 3],
+                        borderColor: '#FFCA28',
+                        backgroundColor: 'rgba(255, 202, 40, 0.1)',
+                        tension: 0.4,
+                        pointBackgroundColor: '#FFCA28',
+                        pointBorderColor: '#fff',
+                        pointBorderWidth: 2,
+                        fill: true
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        stacked: true,
+                        grid: {
+                            color: 'rgba(0, 0, 0, 0.05)'
+                        }
+                    },
+                    x: {
+                        grid: {
+                            display: false
+                        }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        position: 'bottom'
+                    }
+                }
+            }
+        });
+        
+        // Tab functionality
+        document.querySelectorAll('.tab-button').forEach(button => {
+            button.addEventListener('click', () => {
+                // Remove active class from all buttons and contents
+                document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
+                document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+                
+                // Add active class to clicked button
+                button.classList.add('active');
+                
+                // Show corresponding content
+                const tabId = button.dataset.tab;
+                document.getElementById(tabId).classList.add('active');
+            });
+        });
+    </script>
+</body>
+</html>

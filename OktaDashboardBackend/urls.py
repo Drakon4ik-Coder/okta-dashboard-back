@@ -42,6 +42,9 @@ urlpatterns = [
     # Traffic Analysis app
     path('', include('traffic_analysis.urls')),
 
+    # Login tracking app
+    path('', include('login_tracking.urls')),
+
     # Monitoring and health check endpoints
     path('health/', health_check, name='health-check'),
     path('metrics/', include('django_prometheus.urls')),
