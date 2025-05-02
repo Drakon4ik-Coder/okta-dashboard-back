@@ -403,5 +403,5 @@ def logout_view(request: HttpRequest) -> HttpResponse:
     # Django logout to clear session and auth
     logout(request)
     
-    # Redirect to login page
-    return redirect(reverse('login'))
+    # Redirect to home directory instead of login page
+    return redirect('/')

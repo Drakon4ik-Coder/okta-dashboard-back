@@ -59,16 +59,16 @@ class SecurityHeadersMiddleware(MiddlewareMixin):
             "default-src 'self'",
             
             # allow inline scripts *with* our nonce, and CDN-loaded scripts
-            f"script-src 'self' 'nonce-{nonce}' https://cdn.jsdelivr.net",
+            f"script-src 'self' 'nonce-{nonce}' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://unpkg.com",
             # explicit fallback for <script> elements
-            f"script-src-elem 'self' 'nonce-{nonce}' https://cdn.jsdelivr.net",
+            f"script-src-elem 'self' 'nonce-{nonce}' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://unpkg.com",
             
             # allow inline styles *with* our nonce, CDN CSS, and Google Fonts
-            f"style-src 'self' 'nonce-{nonce}' https://cdn.jsdelivr.net https://fonts.googleapis.com",
-            f"style-src-elem 'self' 'nonce-{nonce}' https://cdn.jsdelivr.net https://fonts.googleapis.com",
+            f"style-src 'self' 'nonce-{nonce}' https://cdn.jsdelivr.net https://fonts.googleapis.com https://cdnjs.cloudflare.com https://unpkg.com",
+            f"style-src-elem 'self' 'nonce-{nonce}' https://cdn.jsdelivr.net https://fonts.googleapis.com https://cdnjs.cloudflare.com https://unpkg.com",
             
-            "img-src 'self' data: https://cdn.jsdelivr.net",
-            "font-src 'self' https://cdn.jsdelivr.net https://fonts.gstatic.com",
+            "img-src 'self' data: https://cdn.jsdelivr.net https://images.unsplash.com https://randomuser.me",
+            "font-src 'self' https://cdn.jsdelivr.net https://fonts.gstatic.com https://cdnjs.cloudflare.com",
             "connect-src 'self'",
             "frame-src 'none'",
             "object-src 'none'",
