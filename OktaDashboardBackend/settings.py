@@ -41,6 +41,37 @@ OKTA_AUTHORIZATION_ENDPOINT = "https://dev-72300026.okta.com/oauth2/v1/authorize
 OKTA_TOKEN_ENDPOINT = "https://dev-72300026.okta.com/oauth2/v1/token"
 OKTA_REDIRECT_URI = "http://127.0.0.1:8000/okta/callback"
 OKTA_USER_INFO_ENDPOINT = "https://dev-72300026.okta.com/oauth2/v1/userinfo"
+OKTA_SCOPES = "openid profile email okta.users.read okta.logs.read okta.apps.read"
+
+# Zero Trust Authentication Settings
+TOKEN_REVALIDATION_INTERVAL = 300  # Validate tokens every 5 minutes
+MIN_DEVICE_TRUST_LEVEL = 1  # Minimum device trust level (0-3)
+DEVICE_TRUST_SCORE_TTL = 86400  # Device trust score validity (24 hours)
+RISK_THRESHOLD_IP_CHANGE = 'medium'  # Risk level for IP changes
+RISK_THRESHOLD_INACTIVE_TIME = 1800  # 30 minutes inactivity threshold
+RISK_THRESHOLD_SUSPICIOUS = 'high'  # Threshold for suspicious activity
+
+# Zero Trust Session Security Settings
+SECURE_SESSION_IDLE_TIMEOUT = 1800  # 30 minutes idle timeout
+SECURE_SESSION_ABSOLUTE_TIMEOUT = 28800  # 8 hours max session time
+SECURE_SESSION_ROTATE_AFTER = 3600  # Rotate session hourly
+SECURE_SESSION_ENFORCE_SINGLE = True  # Only allow one active session per user
+SECURE_SESSION_GRACE_PERIOD = 60  # Grace period for session enforcement
+
+# API Authorization Settings
+DEFAULT_API_SCOPE = 'okta.dashboard.read'  # Default scope for API access
+API_PERMISSIONS = {
+    # Format: 'endpoint_pattern': ['required_scope1', 'required_scope2']
+    '/api/admin/': ['okta.dashboard.admin'],
+    '/api/users/': ['okta.dashboard.users.read', 'okta.dashboard.admin'],
+    '/api/logs/': ['okta.dashboard.logs.read', 'okta.dashboard.admin'],
+    '/api/settings/': ['okta.dashboard.admin'],
+    '/api/analytics/': ['okta.dashboard.analytics.read', 'okta.dashboard.admin'],
+    '/api/v1/forensics/': {
+        'GET': ['okta.dashboard.forensics.read', 'okta.dashboard.admin'],
+        'POST': ['okta.dashboard.forensics.write', 'okta.dashboard.admin'],
+    }
+}
 
 # Installed apps - Remove duplicates
 INSTALLED_APPS = [
@@ -55,9 +86,11 @@ INSTALLED_APPS = [
 	'drf_yasg',
 	# Custom apps
 	'rest_framework',
+	'authentication',  # Add the new authentication app
 	
 	# Performance optimizations
 	'django_prometheus',
+	'login_tracking',
 ]
 
 REST_FRAMEWORK = {
@@ -129,24 +162,36 @@ MIDDLEWARE = [
 	"django.middleware.security.SecurityMiddleware",
 	"whitenoise.middleware.WhiteNoiseMiddleware",  # Static file handling early
 	
-	# Custom security middleware
+	# Custom security headers middleware
 	"core.middleware.security_headers.SecurityHeadersMiddleware",
 	
-	# Session/auth middleware
+	# Session middleware
 	"django.contrib.sessions.middleware.SessionMiddleware",
 	
 	# Performance oriented middleware
 	"django.middleware.gzip.GZipMiddleware",  # Compress responses
 	
-	# Other middleware
+	# Common middleware
 	"django.middleware.common.CommonMiddleware",
 	"django.middleware.csrf.CsrfViewMiddleware",
+	
+	# Authentication middleware must come before our custom auth middlewares
 	"django.contrib.auth.middleware.AuthenticationMiddleware",
+	
+	# Zero Trust authentication and authorization middlewares
+	# These must come after Django's AuthenticationMiddleware so request.user is available
+	"authentication.middleware.secure_session.SecureSessionMiddleware",  # Zero Trust session management
+	"authentication.middleware.continuous_auth.ContinuousAuthMiddleware",  # Continuous validation
+	"authentication.middleware.api_authorization.APIAuthorizationMiddleware",  # Least privilege
+	
 	"django.contrib.messages.middleware.MessageMiddleware",
 	"django.middleware.clickjacking.XFrameOptionsMiddleware",
 	
 	# Metrics middleware last
 	"django_prometheus.middleware.PrometheusAfterMiddleware",
+	'django.contrib.auth.middleware.AuthenticationMiddleware',
+	'login_tracking.middleware.LoginTimingMiddleware',
+	'django_prometheus.middleware.PrometheusAfterMiddleware',
 ]
 
 # Root URL configuration

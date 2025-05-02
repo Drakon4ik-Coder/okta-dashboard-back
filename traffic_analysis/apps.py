@@ -15,17 +15,13 @@ class TrafficAnalysisConfig(AppConfig):
         """
         Perform initialization when Django starts.
         Imports signals to ensure they're registered.
-        Registers scheduled tasks.
         """
         import traffic_analysis.signals  # noqa
         
-        # Register scheduled tasks
-        # Using try/except to handle potential database errors during app initialization
-        try:
-            from traffic_analysis.scheduler import register_scheduled_tasks
-            register_scheduled_tasks()
-        except Exception as e:
-            import logging
-            logger = logging.getLogger(__name__)
-            logger.error(f"Failed to register scheduled tasks: {str(e)}")
-            # Don't raise the exception as it would prevent the app from starting
+        # Register post migration signal handler to set up scheduled tasks
+        # This ensures database operations happen after app initialization
+        from django.db.models.signals import post_migrate
+        from traffic_analysis.scheduler import setup_scheduled_tasks
+        
+        # Connect the setup function to the post_migrate signal
+        post_migrate.connect(setup_scheduled_tasks, sender=self)

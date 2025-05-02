@@ -46,7 +46,7 @@ def login_view(request: HttpRequest) -> HttpResponse:
     logger.debug(f"Generated OAuth state: {state[:5]}... (Session ID: {request.session.session_key})")
     
     # Store the URL to redirect to after successful authentication
-    next_url = request.GET.get('next', reverse('traffic_analysis:event_list'))
+    next_url = request.GET.get('next', '/dashboard')
     request.session['next_url'] = next_url
     
     # Generate authorization URL and redirect user
@@ -221,6 +221,10 @@ def oauth_callback(request: HttpRequest) -> HttpResponse:
         # Store Okta user ID in session for later use
         request.session['okta_user_id'] = sub
         
+        # Store authentication timestamp for token validation grace period
+        request.session['auth_time'] = int(time.time())
+        request.session['token_last_validated'] = int(time.time())
+        
         # Generate a device ID if not present
         if not request.session.get('device_id'):
             request.session['device_id'] = str(uuid.uuid4())
@@ -230,6 +234,11 @@ def oauth_callback(request: HttpRequest) -> HttpResponse:
         signer = TimestampSigner()
         signed_device_token = signer.sign(device_token)
         request.session['device_token'] = signed_device_token
+        
+        # Get and store average login time statistics
+        from login_tracking.metrics import get_cached_avg_login_time
+        avg_login_data = get_cached_avg_login_time()
+        request.session['avg_login_time'] = avg_login_data
         
         # Securely store tokens - encrypt with user-specific key
         # This isolates tokens per user and session
@@ -403,5 +412,5 @@ def logout_view(request: HttpRequest) -> HttpResponse:
     # Django logout to clear session and auth
     logout(request)
     
-    # Redirect to login page
-    return redirect(reverse('login'))
+    # Redirect to home directory instead of login page
+    return redirect('/')

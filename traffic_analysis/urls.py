@@ -18,6 +18,15 @@ from traffic_analysis.views.log_views import (
     log_trends
 )
 from traffic_analysis.views.home_views import HomePageView, DashboardHomeView
+from traffic_analysis.views.user_views import UserDashboardView
+from traffic_analysis.views.alert_views import (
+    AlertDashboardView,
+    AlertListView,
+    AlertDetailView
+)
+from traffic_analysis.views.metric_views import MetricsDashboardView
+from traffic_analysis.views.report_views import ReportDashboardView
+from traffic_analysis.views.setting_views import SettingsDashboardView
 
 app_name = "traffic_analysis"
 
@@ -31,11 +40,20 @@ urlpatterns = [
     # HTML UI endpoints
     path('events/', EventsPageView.as_view(), name='events_page'),
     path('logs/', LogDashboardView.as_view(), name='logs_dashboard'),
+    path('users/', UserDashboardView.as_view(), name='users_dashboard'),
+    path('alerts/', AlertDashboardView.as_view(), name='alerts_dashboard'),
+    path('metrics/', MetricsDashboardView.as_view(), name='metrics_dashboard'),
+    path('reports/', ReportDashboardView.as_view(), name='reports_dashboard'),
+    path('settings/', SettingsDashboardView.as_view(), name='settings_dashboard'),
     
     # API endpoints
     path('api/events/', EventListView.as_view(), name='event_list'),
     path('api/events/<str:event_id>/', EventDetailView.as_view(), name='event_detail'),
     path('api/metrics/', EventMetricsView.as_view(), name='event_metrics'),
+    
+    # Alert API endpoints
+    path('api/alerts/', AlertListView.as_view(), name='alert_list'),
+    path('api/alerts/<str:alert_id>/', AlertDetailView.as_view(), name='alert_detail'),
     
     # Log API endpoints
     path('api/logs/statistics/', LogStatisticsAPIView.as_view(), name='log_statistics'),

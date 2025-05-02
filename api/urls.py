@@ -1,5 +1,9 @@
 from django.urls import path, include, re_path
 from rest_framework.routers import DefaultRouter
+from rest_framework.documentation import include_docs_urls
+
+# Import avg_login_time view
+from login_tracking.api_views import avg_login_time
 from drf_yasg.views import get_schema_view
 from drf_yasg import openapi
 from rest_framework import permissions
@@ -45,6 +49,8 @@ schema_view = get_schema_view(
 
 # API URL patterns
 urlpatterns = [
+    path('v1/metrics/login_time/', avg_login_time, name='avg_login_time'),
+
     # API version 1 routes - register via DefaultRouter
     path('v1/', include((v1_router.urls, 'v1'))),
     
