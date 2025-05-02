@@ -27,6 +27,7 @@ from traffic_analysis.views.alert_views import (
 from traffic_analysis.views.metric_views import MetricsDashboardView
 from traffic_analysis.views.report_views import ReportDashboardView
 from traffic_analysis.views.setting_views import SettingsDashboardView
+from traffic_analysis.views.diagnostic_views import mongodb_status
 
 app_name = "traffic_analysis"
 
@@ -59,4 +60,7 @@ urlpatterns = [
     path('api/logs/statistics/', LogStatisticsAPIView.as_view(), name='log_statistics'),
     path('api/logs/comparison/', LogComparisonView.as_view(), name='log_comparison'),
     path('api/logs/trends/', log_trends, name='log_trends'),
+    
+    # Diagnostic endpoints
+    path('api/diagnostic/mongodb-status/', mongodb_status, name='mongodb_status'),
 ]

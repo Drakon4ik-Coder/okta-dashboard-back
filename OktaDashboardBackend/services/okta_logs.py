@@ -36,14 +36,20 @@ class OktaLogsClient:
     def __init__(self):
         """Initialize the Logs API client"""
         self.oauth_client = OktaOAuthClient()
-        self.org_url = settings.OKTA_ORG_URL
+        
+        # Prioritize environment variables over settings
+        self.org_url = os.environ.get('OKTA_ORG_URL', settings.OKTA_ORG_URL)
         self.logs_endpoint = f"{self.org_url}/api/v1/logs"
+        
+        # Log configuration for debugging
+        logger.debug(f"OktaLogsClient using org URL: {self.org_url}")
         
         # Token cache key for this specific client
         self.token_cache_key = "okta_logs_token"
         
-        # MongoDB settings
-        self.db_service = DatabaseService()
+        # MongoDB settings - use the improved connection handling
+        self.db_service = None
+        self._initialize_mongodb_connection()
         self.db_name = settings.MONGODB_SETTINGS.get('db', 'okta_dashboard')
         self.logs_collection_name = 'okta_logs'
         
@@ -51,6 +57,24 @@ class OktaLogsClient:
         self.session = self._create_optimized_session()
         
         logger.info(f"OktaLogsClient initialized with logs endpoint: {self.logs_endpoint}")
+    
+    def _initialize_mongodb_connection(self):
+        """Initialize MongoDB connection with improved error handling"""
+        try:
+            # Reset any existing connections first
+            DatabaseService.reset()
+            
+            # Create new connection
+            self.db_service = DatabaseService()
+            
+            # Test connection
+            if self.db_service.is_connected():
+                logger.info("MongoDB connection established successfully for OktaLogsClient")
+            else:
+                logger.warning("MongoDB connection test failed for OktaLogsClient")
+        except Exception as e:
+            logger.error(f"Error initializing MongoDB connection: {str(e)}")
+            # We'll try to reconnect when needed
     
     def _create_optimized_session(self) -> requests.Session:
         """Create and configure an optimized requests session with connection pooling"""
@@ -238,7 +262,8 @@ class OktaLogsClient:
     
     def get_logs(self, params: Optional[Dict] = None, retry_on_error: bool = True, store_in_mongodb: bool = True) -> List[Dict]:
         """
-        Get logs from the Okta System Log API and optionally store them in MongoDB
+        Get logs from the Okta System Log API and optionally store them in MongoDB.
+        Always uses client credentials flow (machine-to-machine) regardless of user authentication.
         
         Args:
             params: Optional query parameters for filtering logs
@@ -256,8 +281,10 @@ class OktaLogsClient:
             if params is None:
                 params = {"limit": 100}
             
-            # Get an access token
-            access_token = self._get_token()
+            # Always use client credentials for logs API (service-to-service communication)
+            # This will work regardless of user authentication method
+            token_data = self.oauth_client.get_client_credentials_token("okta.logs.read okta.users.read")
+            access_token = token_data.get('access_token')
             
             # Get the DPoP nonce if available
             dpop_nonce = self.oauth_client._get_dpop_nonce(self.logs_endpoint)
@@ -296,9 +323,8 @@ class OktaLogsClient:
                 
                 return logs_data
             elif response.status_code == 401 and retry_on_error:
-                # Token might be invalid, clear cache and try again with a new token
+                # Token might be invalid, try again with a new token
                 logger.warning("Token rejected, getting a new one and retrying")
-                cache.delete(self.token_cache_key)
                 
                 # Recursive call with retry_on_error=False to prevent infinite recursion
                 return self.get_logs(params, retry_on_error=False, store_in_mongodb=store_in_mongodb)

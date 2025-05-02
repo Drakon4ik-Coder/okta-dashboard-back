@@ -597,19 +597,17 @@ try:
         # Store logs in MongoDB (if not already done)
         print("\n========== TESTING MONGODB STORAGE ==========")
         
-        # Disconnect any existing MongoDB connections before creating a new one
+        # Import the improved DatabaseService with reset capability
         try:
-            import mongoengine
-            mongoengine.disconnect_all()
-            print("Successfully disconnected existing MongoDB connections")
-        except Exception as mongo_disconnect_error:
-            print(f"Failed to disconnect MongoDB: {mongo_disconnect_error}")
+            from OktaDashboardBackend.services.database import DatabaseService
             
-        from OktaDashboardBackend.services.database import DatabaseService
-        
-        # Initialize MongoDB service
-        try:
+            # Reset MongoDB connections properly using our new method
+            print("Resetting MongoDB connections...")
+            DatabaseService.reset()
+            
+            # Initialize MongoDB service with fresh connection
             db_service = DatabaseService()
+            
             if db_service.is_connected():
                 print("✓ Successfully connected to MongoDB")
                 
