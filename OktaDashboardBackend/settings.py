@@ -90,6 +90,7 @@ INSTALLED_APPS = [
 	
 	# Performance optimizations
 	'django_prometheus',
+	'login_tracking',
 ]
 
 REST_FRAMEWORK = {
@@ -188,6 +189,9 @@ MIDDLEWARE = [
 	
 	# Metrics middleware last
 	"django_prometheus.middleware.PrometheusAfterMiddleware",
+	'django.contrib.auth.middleware.AuthenticationMiddleware',
+	'login_tracking.middleware.LoginTimingMiddleware',
+	'django_prometheus.middleware.PrometheusAfterMiddleware',
 ]
 
 # Root URL configuration
