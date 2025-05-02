@@ -221,6 +221,10 @@ def oauth_callback(request: HttpRequest) -> HttpResponse:
         # Store Okta user ID in session for later use
         request.session['okta_user_id'] = sub
         
+        # Store authentication timestamp for token validation grace period
+        request.session['auth_time'] = int(time.time())
+        request.session['token_last_validated'] = int(time.time())
+        
         # Generate a device ID if not present
         if not request.session.get('device_id'):
             request.session['device_id'] = str(uuid.uuid4())
