@@ -248,6 +248,11 @@ p {
     margin: 0;
 }
 
+.page-description {
+    margin: 0 !important;
+    font-size: 1.3rem;
+}
+
 .user-dropdown {
     display: flex;
     align-items: center;
@@ -444,7 +449,7 @@ p {
 }
 
 .card-body {
-    padding: 0;
+    padding-top: 15px;
 }
 
 .activity-table {
@@ -562,6 +567,7 @@ p {
 
 .filter-btn {
     padding: 6px 14px;
+    border-radius: 100px;
     border-radius: 100px;
     font-size: 1.1rem;
     font-weight: 600;
@@ -719,6 +725,10 @@ p {
     .row {
         margin-left: -10px;
         margin-right: -10px;
+    }
+
+    .filter-events {
+        padding: 15px !important;
     }
 
     .col-md-3, .col-md-6, .col-lg-8, .col-lg-4 {
@@ -1224,11 +1234,25 @@ p {
     margin: 0;
 }
 
+.card-body form {
+    align-items: center;
+}
+
 .form-label {
     font-weight: 600;
     margin-bottom: 8px;
-    color: var(--dark-1);
-    font-size: 0.9rem;
+    padding-left: 5px;
+    color: var(--gray-4);
+    font-size: 1.3rem;
+}
+
+.form-select {
+    width: 100%;
+    padding: 10px 15px;
+    border: 1px solid var(--gray-2);
+    border-radius: 10px;
+    font-size: 1.25rem;
+    transition: all 0.2s;
 }
 
 .form-text {
@@ -2471,4 +2495,8 @@ footer {
     .map-container {
         height: 180px;
     }
+}
+
+.btn-wrap {
+    margin-top: 30px;
 }
