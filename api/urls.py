@@ -4,7 +4,6 @@ from rest_framework.documentation import include_docs_urls
 
 # Import okta_login_time view
 from login_tracking.api_views import okta_login_time
-from login_tracking.api_views import okta_event_hook
 
 # Import API views
 from .v1.views.forensics_views import ForensicEventsViewSet
@@ -33,9 +32,6 @@ v1_router.register(r'events', EventsViewSet, basename='events')
 
 # API URL patterns
 urlpatterns = [
-    # Okta Event Hook (must be first)
-    path('v1/hooks/okta-events/', okta_event_hook, name='okta_event_hook'),
-
     # Average login time endpoint
     path('v1/metrics/okta_login_time/', okta_login_time, name='okta_login_time'),
 
