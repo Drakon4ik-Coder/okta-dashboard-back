@@ -1,0 +1,1465 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Security Alert Dashboard</title>
+    <!-- Fonts: MongoDB uses Euclid Circular A -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Euclid+Circular+A:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Modern CSS frameworks -->
+    <link rel="stylesheet" href="{% static 'rest_framework/css/bootstrap.min.css' %}">
+    <link rel="stylesheet" href="{% static 'traffic_analysis/css/font-awesome.min.css' %}">
+    <link rel="stylesheet" href="{% static 'traffic_analysis/css/chart.min.css' %}">
+    <style nonce="{{ nonce }}">
+        :root {
+            --green-1: #00ED64;
+            --green-2: #01C853;
+            --blue-1: #0D6EFD;
+            --blue-2: #0953C7;
+            --dark-1: #001E2B;
+            --dark-2: #023430;
+            --gray-1: #F9FBFA;
+            --gray-2: #E8EDEB;
+            --gray-3: #C1C7C6;
+            --gray-4: #889392;
+            --red-1: #EF6C00;
+            --red-2: #DB3030;
+            --yellow-1: #FFCA28;
+            --purple-1: #6E31E0;
+        }
+        
+        body {
+            font-family: 'Euclid Circular A', sans-serif;
+            background-color: var(--gray-1);
+            color: var(--dark-1);
+            line-height: 1.6;
+        }
+        
+        /* Utility classes */
+        .mr-1 {
+            margin-right: 0.25rem !important;
+        }
+        
+        .ml-2 {
+            margin-left: 0.5rem !important;
+        }
+        
+        /* Sidebar styles */
+        .sidebar {
+            background-color: white;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.05);
+            height: 100vh;
+            position: fixed;
+            padding: 0;
+            width: 250px;
+            z-index: 100;
+            transition: all 0.3s;
+            overflow-y: auto;
+        }
+        
+        .sidebar-header {
+            padding: 20px;
+            border-bottom: 1px solid var(--gray-2);
+        }
+        
+        .sidebar-brand {
+            font-weight: 700;
+            font-size: 1.3rem;
+            color: var(--dark-1);
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+        }
+        
+        .sidebar-brand:hover {
+            text-decoration: none;
+            color: var(--dark-1);
+        }
+        
+        .sidebar-brand span {
+            color: var(--green-2);
+        }
+        
+        .nav-item {
+            margin-bottom: 5px;
+        }
+        
+        .nav-link {
+            padding: 12px 20px;
+            color: var(--gray-4);
+            display: flex;
+            align-items: center;
+            transition: all 0.3s;
+            border-left: 4px solid transparent;
+            font-weight: 500;
+        }
+        
+        .nav-link i {
+            margin-right: 10px;
+            font-size: 1.1rem;
+            width: 24px;
+        }
+        
+        .nav-link:hover {
+            color: var(--dark-1);
+            background-color: var(--gray-1);
+        }
+        
+        .nav-link.active {
+            color: var(--green-2);
+            border-left: 4px solid var(--green-2);
+            background-color: rgba(1, 200, 83, 0.05);
+            font-weight: 600;
+        }
+        
+        .main-content {
+            margin-left: 250px;
+            padding: 20px;
+            transition: all 0.3s;
+        }
+        
+        .topbar {
+            background-color: white;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+            padding: 15px 25px;
+            margin-bottom: 25px;
+            border-radius: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .page-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: var(--dark-1);
+            margin: 0;
+        }
+        
+        .page-description {
+            color: var(--gray-4);
+            font-size: 1rem;
+            max-width: 700px;
+        }
+        
+        .user-dropdown {
+            display: flex;
+            align-items: center;
+            cursor: pointer;
+        }
+        
+        .user-info {
+            margin-right: 15px;
+            text-align: right;
+        }
+        
+        .user-name {
+            font-weight: 600;
+            color: var(--dark-1);
+            font-size: 0.9rem;
+        }
+        
+        .user-role {
+            color: var(--gray-4);
+            font-size: 0.75rem;
+        }
+        
+        .user-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background-color: var(--green-1);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            font-size: 1rem;
+            box-shadow: 0 3px 6px rgba(1, 200, 83, 0.2);
+        }
+        
+        /* Stat card styles */
+        .stat-card {
+            background-color: white;
+            border-radius: 12px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+            padding: 20px;
+            margin-bottom: 25px;
+            transition: all 0.3s;
+            height: 100%;
+        }
+        
+        .stat-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 7px 15px rgba(0, 0, 0, 0.1);
+        }
+        
+        .stat-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        
+        .stat-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 15px;
+            flex-shrink: 0;
+        }
+        
+        .stat-icon i {
+            font-size: 24px;
+            color: white;
+        }
+        
+        .icon-primary {
+            background-color: rgba(13, 110, 253, 0.1);
+        }
+        
+        .icon-primary i {
+            color: var(--blue-1);
+        }
+        
+        .icon-success {
+            background-color: rgba(1, 200, 83, 0.1);
+        }
+        
+        .icon-success i {
+            color: var(--green-2);
+        }
+        
+        .icon-warning {
+            background-color: rgba(255, 202, 40, 0.1);
+        }
+        
+        .icon-warning i {
+            color: var(--yellow-1);
+        }
+        
+        .icon-danger {
+            background-color: rgba(219, 48, 48, 0.1);
+        }
+        
+        .icon-danger i {
+            color: var(--red-2);
+        }
+        
+        .stat-title {
+            color: var(--gray-4);
+            font-size: 0.9rem;
+            font-weight: 500;
+            margin: 0;
+            padding: 0;
+        }
+        
+        .stat-value {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--dark-1);
+            margin: 0;
+            padding: 0;
+            line-height: 1.2;
+        }
+        
+        .stat-footer {
+            display: flex;
+            align-items: center;
+            margin-top: 15px;
+            font-size: 0.8rem;
+        }
+        
+        .stat-trend {
+            display: flex;
+            align-items: center;
+        }
+        
+        .trend-up {
+            color: var(--green-2);
+            font-weight: 600;
+        }
+        
+        .trend-down {
+            color: var(--red-2);
+            font-weight: 600;
+        }
+        
+        .trend-neutral {
+            color: var(--gray-4);
+            font-weight: 600;
+        }
+        
+        .stat-period {
+            color: var(--gray-4);
+            margin-left: auto;
+        }
+
+        /* Alert card styles */
+        .alert-card {
+            background-color: white;
+            border-radius: 12px;
+            border-left: 4px solid;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+            padding: 15px 20px;
+            margin-bottom: 15px;
+            transition: all 0.3s;
+        }
+
+        .alert-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 7px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .alert-critical {
+            border-color: var(--red-2);
+        }
+
+        .alert-high {
+            border-color: var(--red-1);
+        }
+
+        .alert-medium {
+            border-color: var(--yellow-1);
+        }
+
+        .alert-low {
+            border-color: var(--gray-4);
+        }
+
+        .alert-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .alert-title {
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 1rem;
+        }
+
+        .alert-severity {
+            padding: 4px 10px;
+            border-radius: 100px;
+            font-size: 0.7rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .severity-critical {
+            background-color: rgba(219, 48, 48, 0.1);
+            color: var(--red-2);
+        }
+
+        .severity-high {
+            background-color: rgba(239, 108, 0, 0.1);
+            color: var(--red-1);
+        }
+
+        .severity-medium {
+            background-color: rgba(255, 202, 40, 0.1);
+            color: var(--yellow-1);
+        }
+
+        .severity-low {
+            background-color: rgba(136, 147, 146, 0.1);
+            color: var(--gray-4);
+        }
+
+        .alert-time {
+            color: var(--gray-4);
+            font-size: 0.8rem;
+            margin-left: auto;
+        }
+
+        .alert-message {
+            margin-bottom: 10px;
+            color: var(--dark-1);
+            font-size: 0.9rem;
+        }
+
+        .alert-details {
+            display: flex;
+            gap: 15px;
+            font-size: 0.8rem;
+            color: var(--gray-4);
+        }
+
+        .alert-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px solid var(--gray-2);
+        }
+
+        .alert-status {
+            padding: 4px 10px;
+            border-radius: 100px;
+            font-size: 0.7rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .status-new {
+            background-color: rgba(1, 200, 83, 0.1);
+            color: var(--green-2);
+        }
+
+        .status-investigating {
+            background-color: rgba(13, 110, 253, 0.1);
+            color: var(--blue-1);
+        }
+
+        .status-resolved {
+            background-color: rgba(136, 147, 146, 0.1);
+            color: var(--gray-4);
+        }
+
+        /* Content card */
+        .content-card {
+            background-color: white;
+            border-radius: 12px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+            padding: 0;
+            margin-bottom: 25px;
+            overflow: hidden;
+        }
+        
+        .card-header {
+            padding: 20px;
+            border-bottom: 1px solid var(--gray-2);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .card-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--dark-1);
+            margin: 0;
+        }
+
+        .card-body {
+            padding: 20px;
+        }
+        
+        .card-footer {
+            padding: 15px 20px;
+            border-top: 1px solid var(--gray-2);
+        }
+
+        /* Rule setting styles */
+        .rule-card {
+            background-color: white;
+            border-radius: 12px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+            padding: 20px;
+            margin-bottom: 15px;
+            transition: all 0.3s;
+            position: relative;
+        }
+
+        .rule-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 7px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .rule-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .rule-title {
+            font-weight: 600;
+            font-size: 1.1rem;
+        }
+
+        .rule-switch {
+            position: relative;
+            display: inline-block;
+            width: 50px;
+            height: 24px;
+        }
+
+        .rule-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: var(--gray-3);
+            transition: .4s;
+            border-radius: 34px;
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 16px;
+            width: 16px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+
+        input:checked + .slider {
+            background-color: var(--green-2);
+        }
+
+        input:focus + .slider {
+            box-shadow: 0 0 1px var(--green-2);
+        }
+
+        input:checked + .slider:before {
+            transform: translateX(26px);
+        }
+
+        .rule-details {
+            color: var(--gray-4);
+            font-size: 0.9rem;
+            margin-bottom: 15px;
+        }
+
+        .rule-conditions {
+            background-color: var(--gray-1);
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+        }
+
+        .condition-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .condition-badge {
+            background-color: var(--dark-1);
+            color: white;
+            font-size: 0.7rem;
+            padding: 2px 8px;
+            border-radius: 100px;
+            margin-right: 10px;
+            text-transform: uppercase;
+        }
+
+        /* Search and filter section */
+        .search-section {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .search-input {
+            flex: 1;
+            position: relative;
+        }
+
+        .search-input input {
+            width: 100%;
+            padding: 10px 15px 10px 40px;
+            border: 1px solid var(--gray-2);
+            border-radius: 8px;
+            font-size: 0.9rem;
+        }
+
+        .search-input i {
+            position: absolute;
+            left: 15px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--gray-4);
+        }
+
+        .filter-button {
+            background-color: white;
+            border: 1px solid var(--gray-2);
+            color: var(--gray-4);
+            padding: 10px 15px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .filter-button:hover {
+            border-color: var(--gray-3);
+            color: var(--dark-1);
+        }
+
+        /* Tabs styling */
+        .tab-buttons {
+            display: flex;
+            border-bottom: 1px solid var(--gray-2);
+            margin-bottom: 20px;
+        }
+
+        .tab-button {
+            padding: 12px 20px;
+            font-weight: 500;
+            color: var(--gray-4);
+            background: transparent;
+            border: none;
+            border-bottom: 2px solid transparent;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .tab-button:hover {
+            color: var(--dark-1);
+        }
+
+        .tab-button.active {
+            color: var(--green-2);
+            border-bottom-color: var(--green-2);
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        /* Chart container */
+        .chart-container {
+            height: 300px;
+            position: relative;
+        }
+
+        /* Responsive fixes */
+        @media (max-width: 991px) {
+            .sidebar {
+                width: 80px;
+            }
+            
+            .sidebar-brand {
+                justify-content: center;
+            }
+            
+            .sidebar-brand span, .nav-link span, .sidebar-text {
+                display: none;
+            }
+            
+            .nav-link {
+                justify-content: center;
+                padding: 15px;
+            }
+            
+            .nav-link i {
+                margin-right: 0;
+                font-size: 1.3rem;
+            }
+            
+            .main-content {
+                margin-left: 80px;
+            }
+        }
+        
+        @media (max-width: 767px) {
+            .sidebar {
+                width: 0;
+                left: -250px;
+            }
+            
+            .main-content {
+                margin-left: 0;
+            }
+            
+            .sidebar.show {
+                width: 250px;
+                left: 0;
+                box-shadow: 0 0 30px rgba(0, 0, 0, 0.2);
+            }
+            
+            .sidebar.show .sidebar-brand span, .sidebar.show .nav-link span, .sidebar.show .sidebar-text {
+                display: inline;
+            }
+            
+            .sidebar.show .nav-link {
+                justify-content: flex-start;
+                padding: 12px 20px;
+            }
+            
+            .sidebar.show .nav-link i {
+                margin-right: 10px;
+                font-size: 1.1rem;
+            }
+
+            .row {
+                margin-left: -10px;
+                margin-right: -10px;
+            }
+
+            .col-md-3, .col-md-6, .col-lg-8, .col-lg-4 {
+                padding-left: 10px;
+                padding-right: 10px;
+            }
+
+            .topbar {
+                flex-direction: column;
+                padding: 15px;
+                text-align: center;
+            }
+
+            .page-title {
+                margin-bottom: 10px;
+            }
+            
+            .card-header {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+        }
+        
+        /* Toggle button for sidebar */
+        .sidebar-toggle {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            width: 40px;
+            height: 40px;
+            background-color: var(--green-2);
+            color: white;
+            border-radius: 50%;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            cursor: pointer;
+            box-shadow: 0 3px 10px rgba(1, 200, 83, 0.3);
+        }
+        
+        @media (max-width: 767px) {
+            .sidebar-toggle {
+                display: flex;
+            }
+            
+            .topbar {
+                margin-top: 30px;
+            }
+        }
+
+        /* Alert badge */
+        .badge-alert-count {
+            display: inline-block;
+            min-width: 24px;
+            height: 24px;
+            border-radius: 100px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            line-height: 24px;
+            text-align: center;
+            padding: 0 8px;
+            color: white;
+        }
+
+        .badge-critical {
+            background-color: var(--red-2);
+        }
+
+        .badge-high {
+            background-color: var(--red-1);
+        }
+
+        .badge-medium {
+            background-color: var(--yellow-1);
+        }
+
+        .badge-low {
+            background-color: var(--gray-4);
+        }
+
+        /* Stat value color classes instead of inline styles */
+        .color-critical {
+            color: var(--red-2);
+            font-size: 1.5rem;
+        }
+        
+        .color-high {
+            color: var(--red-1);
+            font-size: 1.5rem;
+        }
+        
+        .color-medium {
+            color: var(--yellow-1);
+            font-size: 1.5rem;
+        }
+        
+        .color-low {
+            color: var(--gray-4);
+            font-size: 1.5rem;
+        }
+        
+        /* Icon color classes */
+        .icon-color-critical {
+            color: var(--red-2);
+        }
+        
+        .icon-color-high {
+            color: var(--red-1);
+        }
+        
+        .icon-color-medium {
+            color: var(--yellow-1);
+        }
+    </style>
+</head>
+<body>
+    <!-- Sidebar Toggle Button -->
+    <div class="sidebar-toggle">
+        <i class="fas fa-bars"></i>
+    </div>
+    
+    <!-- Sidebar -->
+    <div class="sidebar">
+        <div class="sidebar-header">
+            <a href="/dashboard/" class="sidebar-brand">
+                Okta<span>Analytics</span>
+            </a>
+        </div>
+        
+        <div class="pt-3">
+            <ul class="nav flex-column">
+                <li class="nav-item">
+                    <a class="nav-link" href="/dashboard/">
+                        <i class="fas fa-chart-pie"></i>
+                        <span>Dashboard</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="/events/">
+                        <i class="fas fa-list-alt"></i>
+                        <span>Events</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="/users/">
+                        <i class="fas fa-users"></i>
+                        <span>Users</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link active" href="/alerts/">
+                        <i class="fas fa-bell"></i>
+                        <span>Alerts</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="/metrics/">
+                        <i class="fas fa-chart-line"></i>
+                        <span>Metrics</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="/reports/">
+                        <i class="fas fa-file-alt"></i>
+                        <span>Reports</span>
+                    </a>
+                </li>
+                <li class="nav-item mt-5">
+                    <a class="nav-link" href="/settings/">
+                        <i class="fas fa-cog"></i>
+                        <span>Settings</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="/logout/">
+                        <i class="fas fa-sign-out-alt"></i>
+                        <span>Logout</span>
+                    </a>
+                </li>
+            </ul>
+        </div>
+    </div>
+    
+    <!-- Main Content -->
+    <div class="main-content">
+        <!-- Topbar -->
+        <div class="topbar">
+            <div>
+                <h1 class="page-title">Security Alerts</h1>
+                <p class="page-description">Monitor and manage security alerts from your Okta environment.</p>
+            </div>
+            <div class="user-dropdown">
+                <div class="user-info">
+                    <div class="user-name">Admin User</div>
+                    <div class="user-role">Administrator</div>
+                </div>
+                <div class="user-avatar">A</div>
+            </div>
+        </div>
+
+        <!-- Stats Overview -->
+        <div class="row">
+            <div class="col-md-3">
+                <div class="stat-card">
+                    <div class="stat-header">
+                        <div class="stat-icon icon-primary">
+                            <i class="fas fa-bell"></i>
+                        </div>
+                        <div>
+                            <div class="stat-title">TOTAL ALERTS</div>
+                            <div class="stat-value">{{ total_alerts }}</div>
+                        </div>
+                    </div>
+                    <div class="stat-footer">
+                        <div class="stat-trend trend-up">
+                            <i class="fas fa-arrow-up mr-1"></i> 12.3%
+                        </div>
+                        <div class="stat-period">vs. previous 30 days</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="stat-card">
+                    <div class="stat-header">
+                        <div class="stat-icon icon-danger">
+                            <i class="fas fa-radiation"></i>
+                        </div>
+                        <div>
+                            <div class="stat-title">CRITICAL ALERTS</div>
+                            <div class="stat-value">{{ critical_alerts }}</div>
+                        </div>
+                    </div>
+                    <div class="stat-footer">
+                        <div class="stat-trend trend-down">
+                            <i class="fas fa-arrow-down mr-1"></i> 5.7%
+                        </div>
+                        <div class="stat-period">vs. previous 30 days</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="stat-card">
+                    <div class="stat-header">
+                        <div class="stat-icon icon-warning">
+                            <i class="fas fa-exclamation-triangle"></i>
+                        </div>
+                        <div>
+                            <div class="stat-title">HIGH ALERTS</div>
+                            <div class="stat-value">{{ high_alerts }}</div>
+                        </div>
+                    </div>
+                    <div class="stat-footer">
+                        <div class="stat-trend trend-up">
+                            <i class="fas fa-arrow-up mr-1"></i> 8.2%
+                        </div>
+                        <div class="stat-period">vs. previous 30 days</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="stat-card">
+                    <div class="stat-header">
+                        <div class="stat-icon icon-success">
+                            <i class="fas fa-check-circle"></i>
+                        </div>
+                        <div>
+                            <div class="stat-title">ALERT RULES</div>
+                            <div class="stat-value">12</div>
+                        </div>
+                    </div>
+                    <div class="stat-footer">
+                        <div class="stat-trend trend-neutral">
+                            <i class="fas fa-minus mr-1"></i> 0%
+                        </div>
+                        <div class="stat-period">vs. previous 30 days</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Alert Severity Distribution -->
+        <div class="row">
+            <div class="col-lg-4">
+                <div class="content-card">
+                    <div class="card-header">
+                        <h2 class="card-title">Alert Distribution</h2>
+                    </div>
+                    <div class="card-body">
+                        <div class="chart-container">
+                            <canvas id="alertDistributionChart"></canvas>
+                        </div>
+                        <div class="row text-center mt-4">
+                            <div class="col-3">
+                                <div class="stat-value color-critical">{{ critical_alerts }}</div>
+                                <div class="stat-title">Critical</div>
+                            </div>
+                            <div class="col-3">
+                                <div class="stat-value color-high">{{ high_alerts }}</div>
+                                <div class="stat-title">High</div>
+                            </div>
+                            <div class="col-3">
+                                <div class="stat-value color-medium">{{ medium_alerts }}</div>
+                                <div class="stat-title">Medium</div>
+                            </div>
+                            <div class="col-3">
+                                <div class="stat-value color-low">{{ low_alerts }}</div>
+                                <div class="stat-title">Low</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-8">
+                <div class="content-card">
+                    <div class="card-header">
+                        <h2 class="card-title">Alert Trends</h2>
+                    </div>
+                    <div class="card-body">
+                        <div class="chart-container">
+                            <canvas id="alertTrendChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Alert Management Tabs -->
+        <div class="content-card mt-4">
+            <div class="card-header">
+                <h2 class="card-title">Alert Management</h2>
+                <div class="tab-buttons">
+                    <button class="tab-button active" data-tab="active-alerts">Active Alerts</button>
+                    <button class="tab-button" data-tab="alert-rules">Alert Rules</button>
+                    <button class="tab-button" data-tab="alert-history">Alert History</button>
+                </div>
+            </div>
+            <div class="card-body p-0">
+                <div id="active-alerts" class="tab-content active">
+                    <!-- Search and Filter -->
+                    <div class="p-3">
+                        <div class="search-section">
+                            <div class="search-input">
+                                <i class="fas fa-search"></i>
+                                <input type="text" placeholder="Search alerts...">
+                            </div>
+                            <button class="filter-button">
+                                <i class="fas fa-filter"></i> Filter
+                            </button>
+                            <button class="filter-button">
+                                <i class="fas fa-download"></i> Export
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Alert List -->
+                    <div class="p-3">
+                        <!-- Critical Alert -->
+                        <div class="alert-card alert-critical">
+                            <div class="alert-header">
+                                <div class="alert-title">
+                                    <i class="fas fa-radiation icon-color-critical"></i>
+                                    Brute Force Attack Detected
+                                </div>
+                                <span class="alert-severity severity-critical">Critical</span>
+                            </div>
+                            <div class="alert-message">
+                                Multiple failed login attempts (25) detected for user john.doe@example.com from multiple IP addresses within a short time period.
+                            </div>
+                            <div class="alert-details">
+                                <span><i class="fas fa-user mr-1"></i> john.doe@example.com</span>
+                                <span><i class="fas fa-globe mr-1"></i> Multiple IPs</span>
+                                <span><i class="fas fa-calendar-alt mr-1"></i> May 1, 2025 10:23 AM</span>
+                            </div>
+                            <div class="alert-footer">
+                                <div class="alert-status status-new">New</div>
+                                <div>
+                                    <button class="btn btn-sm btn-outline-secondary mr-1">
+                                        <i class="fas fa-eye"></i> View Details
+                                    </button>
+                                    <button class="btn btn-sm btn-primary">
+                                        <i class="fas fa-check"></i> Mark as Investigating
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- High Alert -->
+                        <div class="alert-card alert-high">
+                            <div class="alert-header">
+                                <div class="alert-title">
+                                    <i class="fas fa-exclamation-triangle icon-color-high"></i>
+                                    Suspicious Login Location
+                                </div>
+                                <span class="alert-severity severity-high">High</span>
+                            </div>
+                            <div class="alert-message">
+                                User sarah.smith@example.com logged in from an unusual location (Moscow, Russia) that does not match their typical access pattern.
+                            </div>
+                            <div class="alert-details">
+                                <span><i class="fas fa-user mr-1"></i> sarah.smith@example.com</span>
+                                <span><i class="fas fa-globe mr-1"></i> 192.168.45.12</span>
+                                <span><i class="fas fa-calendar-alt mr-1"></i> Apr 30, 2025 08:45 PM</span>
+                            </div>
+                            <div class="alert-footer">
+                                <div class="alert-status status-investigating">Investigating</div>
+                                <div>
+                                    <button class="btn btn-sm btn-outline-secondary mr-1">
+                                        <i class="fas fa-eye"></i> View Details
+                                    </button>
+                                    <button class="btn btn-sm btn-success">
+                                        <i class="fas fa-check-circle"></i> Resolve
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Medium Alert -->
+                        <div class="alert-card alert-medium">
+                            <div class="alert-header">
+                                <div class="alert-title">
+                                    <i class="fas fa-exclamation-circle icon-color-medium"></i>
+                                    MFA Disabled
+                                </div>
+                                <span class="alert-severity severity-medium">Medium</span>
+                            </div>
+                            <div class="alert-message">
+                                User michael.jackson@example.com disabled their multi-factor authentication. This could potentially reduce account security.
+                            </div>
+                            <div class="alert-details">
+                                <span><i class="fas fa-user mr-1"></i> michael.jackson@example.com</span>
+                                <span><i class="fas fa-globe mr-1"></i> 10.45.12.78</span>
+                                <span><i class="fas fa-calendar-alt mr-1"></i> Apr 29, 2025 03:12 PM</span>
+                            </div>
+                            <div class="alert-footer">
+                                <div class="alert-status status-resolved">Resolved</div>
+                                <div>
+                                    <button class="btn btn-sm btn-outline-secondary">
+                                        <i class="fas fa-eye"></i> View Details
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="alert-rules" class="tab-content">
+                    <div class="p-3">
+                        <button class="btn btn-primary mb-4">
+                            <i class="fas fa-plus"></i> Create New Rule
+                        </button>
+                        
+                        <!-- Rule cards -->
+                        <div class="rule-card">
+                            <div class="rule-header">
+                                <div class="rule-title">Brute Force Attack Detection</div>
+                                <label class="rule-switch">
+                                    <input type="checkbox" checked>
+                                    <span class="slider"></span>
+                                </label>
+                            </div>
+                            <div class="rule-details">
+                                Detects multiple failed login attempts for the same user in a short time period from different IP addresses.
+                            </div>
+                            <div class="rule-conditions">
+                                <div class="condition-item">
+                                    <span class="condition-badge">if</span>
+                                    <span>Failed login attempts > 15</span>
+                                </div>
+                                <div class="condition-item">
+                                    <span class="condition-badge">and</span>
+                                    <span>Time period < 5 minutes</span>
+                                </div>
+                                <div class="condition-item">
+                                    <span class="condition-badge">and</span>
+                                    <span>From > 3 distinct IP addresses</span>
+                                </div>
+                                <div class="condition-item">
+                                    <span class="condition-badge">then</span>
+                                    <span>Create CRITICAL alert</span>
+                                </div>
+                            </div>
+                            <div class="rule-footer">
+                                <div>
+                                    <span class="alert-severity severity-critical">Critical</span>
+                                    <span class="ml-2">Last triggered: 2 hours ago</span>
+                                </div>
+                                <div>
+                                    <button class="btn btn-sm btn-outline-secondary">
+                                        <i class="fas fa-edit"></i> Edit
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="rule-card">
+                            <div class="rule-header">
+                                <div class="rule-title">Unusual Login Location</div>
+                                <label class="rule-switch">
+                                    <input type="checkbox" checked>
+                                    <span class="slider"></span>
+                                </label>
+                            </div>
+                            <div class="rule-details">
+                                Detects when a user logs in from a location that doesn't match their typical access pattern.
+                            </div>
+                            <div class="rule-conditions">
+                                <div class="condition-item">
+                                    <span class="condition-badge">if</span>
+                                    <span>Login from new country</span>
+                                </div>
+                                <div class="condition-item">
+                                    <span class="condition-badge">and</span>
+                                    <span>User has no history in this country</span>
+                                </div>
+                                <div class="condition-item">
+                                    <span class="condition-badge">then</span>
+                                    <span>Create HIGH alert</span>
+                                </div>
+                            </div>
+                            <div class="rule-footer">
+                                <div>
+                                    <span class="alert-severity severity-high">High</span>
+                                    <span class="ml-2">Last triggered: 16 hours ago</span>
+                                </div>
+                                <div>
+                                    <button class="btn btn-sm btn-outline-secondary">
+                                        <i class="fas fa-edit"></i> Edit
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="alert-history" class="tab-content">
+                    <div class="p-3">
+                        <div class="search-section">
+                            <div class="search-input">
+                                <i class="fas fa-search"></i>
+                                <input type="text" placeholder="Search alert history...">
+                            </div>
+                            <button class="filter-button">
+                                <i class="fas fa-calendar-alt"></i> Date Range
+                            </button>
+                            <button class="filter-button">
+                                <i class="fas fa-download"></i> Export
+                            </button>
+                        </div>
+                        
+                        <!-- Historical alerts table -->
+                        <div class="table-responsive mt-3">
+                            <table class="table">
+                                <thead>
+                                    <tr>
+                                        <th>Alert</th>
+                                        <th>Severity</th>
+                                        <th>User</th>
+                                        <th>Time</th>
+                                        <th>Resolution</th>
+                                        <th>Resolved By</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td>Suspicious API Access</td>
+                                        <td><span class="alert-severity severity-high">High</span></td>
+                                        <td>api.service@example.com</td>
+                                        <td>Apr 28, 2025 11:23 AM</td>
+                                        <td>False Positive</td>
+                                        <td>Admin User</td>
+                                        <td>
+                                            <button class="btn btn-sm btn-outline-primary">
+                                                <i class="fas fa-eye"></i>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td>Admin Privilege Change</td>
+                                        <td><span class="alert-severity severity-medium">Medium</span></td>
+                                        <td>system.admin@example.com</td>
+                                        <td>Apr 25, 2025 03:45 PM</td>
+                                        <td>Authorized Change</td>
+                                        <td>Admin User</td>
+                                        <td>
+                                            <button class="btn btn-sm btn-outline-primary">
+                                                <i class="fas fa-eye"></i>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td>Excessive Failed MFA</td>
+                                        <td><span class="alert-severity severity-critical">Critical</span></td>
+                                        <td>karen.walker@example.com</td>
+                                        <td>Apr 22, 2025 09:12 AM</td>
+                                        <td>User Training</td>
+                                        <td>Security Analyst</td>
+                                        <td>
+                                            <button class="btn btn-sm btn-outline-primary">
+                                                <i class="fas fa-eye"></i>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="card-footer">
+                <a href="#" class="btn btn-sm btn-primary">View All Alerts</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- JavaScript -->
+    <script src="{% static 'rest_framework/js/jquery-3.7.1.min.js' %}"></script>
+    <script src="{% static 'rest_framework/js/bootstrap.min.js' %}"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.7.1/dist/chart.min.js" nonce="{{ nonce }}"></script>
+    <script nonce="{{ nonce }}">
+        // Toggle sidebar on mobile
+        document.querySelector('.sidebar-toggle').addEventListener('click', function() {
+            document.querySelector('.sidebar').classList.toggle('show');
+        });
+        
+        // Alert Distribution Chart
+        const alertCtx = document.getElementById('alertDistributionChart').getContext('2d');
+        const alertData = {
+            labels: ['Critical', 'High', 'Medium', 'Low'],
+            datasets: [{
+                data: [{{ critical_alerts }}, {{ high_alerts }}, {{ medium_alerts }}, {{ low_alerts }}],
+                backgroundColor: [
+                    '#DB3030',
+                    '#EF6C00',
+                    '#FFCA28',
+                    '#889392'
+                ],
+                borderColor: 'white',
+                borderWidth: 2
+            }]
+        };
+        
+        const alertChart = new Chart(alertCtx, {
+            type: 'pie',
+            data: alertData,
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: {
+                            padding: 20,
+                            usePointStyle: true,
+                            pointStyle: 'circle'
+                        }
+                    }
+                }
+            }
+        });
+        
+        // Alert Trend Chart
+        const trendCtx = document.getElementById('alertTrendChart').getContext('2d');
+        const trendChart = new Chart(trendCtx, {
+            type: 'line',
+            data: {
+                labels: ['Apr 25', 'Apr 26', 'Apr 27', 'Apr 28', 'Apr 29', 'Apr 30', 'May 1'],
+                datasets: [
+                    {
+                        label: 'Critical',
+                        data: [1, 0, 2, 0, 0, 1, 1],
+                        borderColor: '#DB3030',
+                        backgroundColor: 'rgba(219, 48, 48, 0.1)',
+                        tension: 0.4,
+                        pointBackgroundColor: '#DB3030',
+                        pointBorderColor: '#fff',
+                        pointBorderWidth: 2,
+                        fill: true
+                    },
+                    {
+                        label: 'High',
+                        data: [3, 2, 1, 4, 2, 3, 2],
+                        borderColor: '#EF6C00',
+                        backgroundColor: 'rgba(239, 108, 0, 0.1)',
+                        tension: 0.4,
+                        pointBackgroundColor: '#EF6C00',
+                        pointBorderColor: '#fff',
+                        pointBorderWidth: 2,
+                        fill: true
+                    },
+                    {
+                        label: 'Medium',
+                        data: [4, 3, 5, 3, 4, 2, 3],
+                        borderColor: '#FFCA28',
+                        backgroundColor: 'rgba(255, 202, 40, 0.1)',
+                        tension: 0.4,
+                        pointBackgroundColor: '#FFCA28',
+                        pointBorderColor: '#fff',
+                        pointBorderWidth: 2,
+                        fill: true
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        stacked: true,
+                        grid: {
+                            color: 'rgba(0, 0, 0, 0.05)'
+                        }
+                    },
+                    x: {
+                        grid: {
+                            display: false
+                        }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        position: 'bottom'
+                    }
+                }
+            }
+        });
+        
+        // Tab functionality
+        document.querySelectorAll('.tab-button').forEach(button => {
+            button.addEventListener('click', () => {
+                // Remove active class from all buttons and contents
+                document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
+                document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+                
+                // Add active class to clicked button
+                button.classList.add('active');
+                
+                // Show corresponding content
+                const tabId = button.dataset.tab;
+                document.getElementById(tabId).classList.add('active');
+            });
+        });
+    </script>
+</body>
+</html>

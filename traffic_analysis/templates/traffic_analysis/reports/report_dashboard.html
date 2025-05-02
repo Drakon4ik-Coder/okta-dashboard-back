@@ -1,0 +1,1168 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reports Dashboard</title>
+    <!-- Fonts: MongoDB uses Euclid Circular A -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Euclid+Circular+A:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Modern CSS frameworks -->
+    <link rel="stylesheet" href="{% static 'rest_framework/css/bootstrap.min.css' %}">
+    <link rel="stylesheet" href="{% static 'traffic_analysis/css/font-awesome.min.css' %}">
+    <link rel="stylesheet" href="{% static 'traffic_analysis/css/chart.min.css' %}">
+    <style nonce="{{ nonce }}">
+        :root {
+            --green-1: #00ED64;
+            --green-2: #01C853;
+            --blue-1: #0D6EFD;
+            --blue-2: #0953C7;
+            --dark-1: #001E2B;
+            --dark-2: #023430;
+            --gray-1: #F9FBFA;
+            --gray-2: #E8EDEB;
+            --gray-3: #C1C7C6;
+            --gray-4: #889392;
+            --red-1: #EF6C00;
+            --red-2: #DB3030;
+            --yellow-1: #FFCA28;
+            --purple-1: #6E31E0;
+        }
+        
+        body {
+            font-family: 'Euclid Circular A', sans-serif;
+            background-color: var(--gray-1);
+            color: var(--dark-1);
+            line-height: 1.6;
+        }
+        
+        /* Utility classes */
+        .mr-1 {
+            margin-right: 0.25rem !important;
+        }
+        
+        .ml-2 {
+            margin-left: 0.5rem !important;
+        }
+        
+        /* Sidebar styles */
+        .sidebar {
+            background-color: white;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.05);
+            height: 100vh;
+            position: fixed;
+            padding: 0;
+            width: 250px;
+            z-index: 100;
+            transition: all 0.3s;
+            overflow-y: auto;
+        }
+        
+        .sidebar-header {
+            padding: 20px;
+            border-bottom: 1px solid var(--gray-2);
+        }
+        
+        .sidebar-brand {
+            font-weight: 700;
+            font-size: 1.3rem;
+            color: var(--dark-1);
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+        }
+        
+        .sidebar-brand:hover {
+            text-decoration: none;
+            color: var(--dark-1);
+        }
+        
+        .sidebar-brand span {
+            color: var(--green-2);
+        }
+        
+        .nav-item {
+            margin-bottom: 5px;
+        }
+        
+        .nav-link {
+            padding: 12px 20px;
+            color: var(--gray-4);
+            display: flex;
+            align-items: center;
+            transition: all 0.3s;
+            border-left: 4px solid transparent;
+            font-weight: 500;
+        }
+        
+        .nav-link i {
+            margin-right: 10px;
+            font-size: 1.1rem;
+            width: 24px;
+        }
+        
+        .nav-link:hover {
+            color: var(--dark-1);
+            background-color: var(--gray-1);
+        }
+        
+        .nav-link.active {
+            color: var(--green-2);
+            border-left: 4px solid var(--green-2);
+            background-color: rgba(1, 200, 83, 0.05);
+            font-weight: 600;
+        }
+        
+        .main-content {
+            margin-left: 250px;
+            padding: 20px;
+            transition: all 0.3s;
+        }
+        
+        .topbar {
+            background-color: white;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+            padding: 15px 25px;
+            margin-bottom: 25px;
+            border-radius: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .page-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: var(--dark-1);
+            margin: 0;
+        }
+        
+        .page-description {
+            color: var(--gray-4);
+            font-size: 1rem;
+            max-width: 700px;
+        }
+        
+        .user-dropdown {
+            display: flex;
+            align-items: center;
+            cursor: pointer;
+        }
+        
+        .user-info {
+            margin-right: 15px;
+            text-align: right;
+        }
+        
+        .user-name {
+            font-weight: 600;
+            color: var(--dark-1);
+            font-size: 0.9rem;
+        }
+        
+        .user-role {
+            color: var(--gray-4);
+            font-size: 0.75rem;
+        }
+        
+        .user-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background-color: var(--green-1);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            font-size: 1rem;
+            box-shadow: 0 3px 6px rgba(1, 200, 83, 0.2);
+        }
+        
+        /* Content card */
+        .content-card {
+            background-color: white;
+            border-radius: 12px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+            padding: 0;
+            margin-bottom: 25px;
+            overflow: hidden;
+        }
+        
+        .card-header {
+            padding: 20px;
+            border-bottom: 1px solid var(--gray-2);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .card-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--dark-1);
+            margin: 0;
+        }
+
+        .card-body {
+            padding: 20px;
+        }
+        
+        .card-footer {
+            padding: 15px 20px;
+            border-top: 1px solid var(--gray-2);
+        }
+        
+        /* Report card styles */
+        .report-card {
+            border: 1px solid var(--gray-2);
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            transition: all 0.3s;
+            background-color: white;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .report-card:hover {
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.08);
+            transform: translateY(-3px);
+        }
+        
+        .report-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 15px;
+        }
+        
+        .report-title {
+            font-weight: 600;
+            font-size: 1.1rem;
+            color: var(--dark-1);
+            margin-bottom: 5px;
+        }
+        
+        .report-description {
+            color: var(--gray-4);
+            font-size: 0.9rem;
+            margin-bottom: 15px;
+        }
+        
+        .report-actions {
+            display: flex;
+            justify-content: flex-start;
+            gap: 10px;
+        }
+        
+        .report-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            margin-bottom: 15px;
+            color: var(--gray-4);
+            font-size: 0.85rem;
+        }
+        
+        .report-meta-item {
+            display: flex;
+            align-items: center;
+        }
+        
+        .report-meta-item i {
+            margin-right: 5px;
+        }
+        
+        .report-badge {
+            position: absolute;
+            top: 0;
+            right: 0;
+            padding: 5px 15px;
+            font-size: 0.7rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            border-bottom-left-radius: 8px;
+        }
+        
+        .badge-user {
+            background-color: rgba(13, 110, 253, 0.1);
+            color: var(--blue-1);
+        }
+        
+        .badge-security {
+            background-color: rgba(219, 48, 48, 0.1);
+            color: var(--red-2);
+        }
+        
+        .badge-application {
+            background-color: rgba(1, 200, 83, 0.1);
+            color: var(--green-2);
+        }
+        
+        .badge-admin {
+            background-color: rgba(110, 49, 224, 0.1);
+            color: var(--purple-1);
+        }
+        
+        .report-action-button {
+            padding: 8px 15px;
+            border-radius: 6px;
+            font-weight: 500;
+            font-size: 0.85rem;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .action-generate {
+            background-color: var(--blue-1);
+            color: white;
+            border: none;
+        }
+        
+        .action-generate:hover {
+            background-color: var(--blue-2);
+        }
+        
+        .action-schedule {
+            background-color: white;
+            color: var(--blue-1);
+            border: 1px solid var(--blue-1);
+        }
+        
+        .action-schedule:hover {
+            background-color: rgba(13, 110, 253, 0.1);
+        }
+        
+        .action-download {
+            background-color: white;
+            color: var(--dark-1);
+            border: 1px solid var(--gray-3);
+        }
+        
+        .action-download:hover {
+            background-color: var(--gray-1);
+        }
+        
+        /* Filter and search section */
+        .filter-bar {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 25px;
+            flex-wrap: wrap;
+        }
+        
+        .search-input {
+            position: relative;
+            flex: 1;
+            min-width: 200px;
+        }
+        
+        .search-input input {
+            width: 100%;
+            padding: 10px 15px 10px 40px;
+            border: 1px solid var(--gray-2);
+            border-radius: 8px;
+            font-size: 0.9rem;
+        }
+        
+        .search-input i {
+            position: absolute;
+            left: 15px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--gray-4);
+        }
+        
+        .filter-dropdown {
+            min-width: 150px;
+        }
+        
+        .button-add-report {
+            background-color: var(--green-2);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .button-add-report:hover {
+            background-color: #01b548;
+        }
+        
+        /* Tabs styling */
+        .tab-buttons {
+            display: flex;
+            border-bottom: 1px solid var(--gray-2);
+            margin-bottom: 20px;
+        }
+        
+        .tab-button {
+            padding: 12px 20px;
+            font-weight: 500;
+            color: var(--gray-4);
+            background: transparent;
+            border: none;
+            border-bottom: 2px solid transparent;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .tab-button:hover {
+            color: var(--dark-1);
+        }
+        
+        .tab-button.active {
+            color: var(--green-2);
+            border-bottom-color: var(--green-2);
+        }
+        
+        .tab-content {
+            display: none;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        /* Scheduled reports styles */
+        .schedule-info {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-top: 10px;
+            padding: 10px;
+            background-color: var(--gray-1);
+            border-radius: 8px;
+        }
+        
+        .schedule-icon {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background-color: rgba(1, 200, 83, 0.1);
+            color: var(--green-2);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .schedule-details {
+            flex: 1;
+        }
+        
+        .schedule-title {
+            font-weight: 500;
+            margin-bottom: 2px;
+        }
+        
+        .schedule-description {
+            font-size: 0.85rem;
+            color: var(--gray-4);
+        }
+        
+        .report-status {
+            padding: 4px 10px;
+            border-radius: 100px;
+            font-size: 0.7rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        
+        .status-active {
+            background-color: rgba(1, 200, 83, 0.1);
+            color: var(--green-2);
+        }
+        
+        .status-processing {
+            background-color: rgba(13, 110, 253, 0.1);
+            color: var(--blue-1);
+        }
+        
+        .status-completed {
+            background-color: rgba(136, 147, 146, 0.1);
+            color: var(--gray-4);
+        }
+        
+        /* Modal styles */
+        .modal-header {
+            border-bottom: 1px solid var(--gray-2);
+            padding: 15px 20px;
+        }
+        
+        .modal-title {
+            font-weight: 600;
+            color: var(--dark-1);
+        }
+        
+        .modal-body {
+            padding: 20px;
+        }
+        
+        .modal-footer {
+            border-top: 1px solid var(--gray-2);
+            padding: 15px 20px;
+        }
+        
+        /* Responsive fixes */
+        @media (max-width: 991px) {
+            .sidebar {
+                width: 80px;
+            }
+            
+            .sidebar-brand {
+                justify-content: center;
+            }
+            
+            .sidebar-brand span, .nav-link span, .sidebar-text {
+                display: none;
+            }
+            
+            .nav-link {
+                justify-content: center;
+                padding: 15px;
+            }
+            
+            .nav-link i {
+                margin-right: 0;
+                font-size: 1.3rem;
+            }
+            
+            .main-content {
+                margin-left: 80px;
+            }
+        }
+        
+        @media (max-width: 767px) {
+            .sidebar {
+                width: 0;
+                left: -250px;
+            }
+            
+            .main-content {
+                margin-left: 0;
+            }
+            
+            .sidebar.show {
+                width: 250px;
+                left: 0;
+                box-shadow: 0 0 30px rgba(0, 0, 0, 0.2);
+            }
+            
+            .sidebar.show .sidebar-brand span, .sidebar.show .nav-link span, .sidebar.show .sidebar-text {
+                display: inline;
+            }
+            
+            .sidebar.show .nav-link {
+                justify-content: flex-start;
+                padding: 12px 20px;
+            }
+            
+            .sidebar.show .nav-link i {
+                margin-right: 10px;
+                font-size: 1.1rem;
+            }
+            
+            .topbar {
+                flex-direction: column;
+                padding: 15px;
+                text-align: center;
+            }
+            
+            .page-title {
+                margin-bottom: 10px;
+            }
+            
+            .card-header {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+            
+            .tab-buttons {
+                margin-top: 15px;
+                width: 100%;
+                overflow-x: auto;
+            }
+            
+            .report-actions {
+                flex-direction: column;
+                align-items: stretch;
+            }
+        }
+        
+        /* Toggle button for sidebar */
+        .sidebar-toggle {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            width: 40px;
+            height: 40px;
+            background-color: var(--green-2);
+            color: white;
+            border-radius: 50%;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            cursor: pointer;
+            box-shadow: 0 3px 10px rgba(1, 200, 83, 0.3);
+        }
+        
+        @media (max-width: 767px) {
+            .sidebar-toggle {
+                display: flex;
+            }
+            
+            .topbar {
+                margin-top: 30px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Sidebar Toggle Button -->
+    <div class="sidebar-toggle">
+        <i class="fas fa-bars"></i>
+    </div>
+    
+    <!-- Sidebar -->
+    <div class="sidebar">
+        <div class="sidebar-header">
+            <a href="/dashboard/" class="sidebar-brand">
+                Okta<span>Analytics</span>
+            </a>
+        </div>
+        
+        <div class="pt-3">
+            <ul class="nav flex-column">
+                <li class="nav-item">
+                    <a class="nav-link" href="/dashboard/">
+                        <i class="fas fa-chart-pie"></i>
+                        <span>Dashboard</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="/events/">
+                        <i class="fas fa-list-alt"></i>
+                        <span>Events</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="/users/">
+                        <i class="fas fa-users"></i>
+                        <span>Users</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="/alerts/">
+                        <i class="fas fa-bell"></i>
+                        <span>Alerts</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="/metrics/">
+                        <i class="fas fa-chart-line"></i>
+                        <span>Metrics</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link active" href="/reports/">
+                        <i class="fas fa-file-alt"></i>
+                        <span>Reports</span>
+                    </a>
+                </li>
+                <li class="nav-item mt-5">
+                    <a class="nav-link" href="/settings/">
+                        <i class="fas fa-cog"></i>
+                        <span>Settings</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="/logout/">
+                        <i class="fas fa-sign-out-alt"></i>
+                        <span>Logout</span>
+                    </a>
+                </li>
+            </ul>
+        </div>
+    </div>
+    
+    <!-- Main Content -->
+    <div class="main-content">
+        <!-- Topbar -->
+        <div class="topbar">
+            <div>
+                <h1 class="page-title">Reports</h1>
+                <p class="page-description">Generate, schedule, and manage reports based on your Okta data.</p>
+            </div>
+            <div class="user-dropdown">
+                <div class="user-info">
+                    <div class="user-name">Admin User</div>
+                    <div class="user-role">Administrator</div>
+                </div>
+                <div class="user-avatar">A</div>
+            </div>
+        </div>
+
+        <!-- Filter Bar -->
+        <div class="filter-bar">
+            <div class="search-input">
+                <i class="fas fa-search"></i>
+                <input type="text" placeholder="Search reports...">
+            </div>
+            <select class="form-control filter-dropdown">
+                <option>All Categories</option>
+                <option>User Reports</option>
+                <option>Security Reports</option>
+                <option>Application Reports</option>
+                <option>Admin Reports</option>
+            </select>
+            <button class="button-add-report">
+                <i class="fas fa-plus"></i>
+                Create Custom Report
+            </button>
+        </div>
+
+        <!-- Reports Section -->
+        <div class="content-card">
+            <div class="card-header">
+                <h2 class="card-title">Report Management</h2>
+                <div class="tab-buttons">
+                    <button class="tab-button active" data-tab="available-reports">Available Reports</button>
+                    <button class="tab-button" data-tab="scheduled-reports">Scheduled Reports</button>
+                    <button class="tab-button" data-tab="report-history">Report History</button>
+                    <button class="tab-button" data-tab="templates">Templates</button>
+                </div>
+            </div>
+            <div class="card-body">
+                <!-- Available Reports Tab -->
+                <div id="available-reports" class="tab-content active">
+                    <div class="row">
+                        {% for report in available_reports %}
+                        <div class="col-lg-6">
+                            <div class="report-card">
+                                <span class="report-badge badge-{{ report.type }}">{{ report.type }}</span>
+                                <div class="report-header">
+                                    <div>
+                                        <h3 class="report-title">{{ report.name }}</h3>
+                                    </div>
+                                </div>
+                                <p class="report-description">{{ report.description }}</p>
+                                <div class="report-meta">
+                                    <span class="report-meta-item">
+                                        <i class="fas fa-file-pdf"></i> Available formats: PDF, CSV, Excel
+                                    </span>
+                                    <span class="report-meta-item">
+                                        <i class="fas fa-calendar-alt"></i> Daily, Weekly, Monthly
+                                    </span>
+                                </div>
+                                <div class="report-actions">
+                                    <button class="report-action-button action-generate">
+                                        <i class="fas fa-play"></i> Generate Now
+                                    </button>
+                                    <button class="report-action-button action-schedule">
+                                        <i class="fas fa-clock"></i> Schedule
+                                    </button>
+                                    <button class="report-action-button action-download">
+                                        <i class="fas fa-cog"></i> Configure
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+
+                        <!-- When no reports are available -->
+                        {% if not available_reports %}
+                        <div class="col-12">
+                            <div class="alert alert-info">
+                                <i class="fas fa-info-circle mr-2"></i>
+                                No reports are currently available. Please create a custom report or check back later.
+                            </div>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <!-- Scheduled Reports Tab -->
+                <div id="scheduled-reports" class="tab-content">
+                    {% if scheduled_reports %}
+                        {% for report in scheduled_reports %}
+                        <div class="report-card">
+                            <div class="report-header">
+                                <div>
+                                    <h3 class="report-title">{{ report.name }}</h3>
+                                    <p class="report-description">{{ report.description }}</p>
+                                </div>
+                                <span class="report-status status-{{ report.status|lower }}">{{ report.status }}</span>
+                            </div>
+                            <div class="schedule-info">
+                                <div class="schedule-icon">
+                                    <i class="fas fa-calendar-alt"></i>
+                                </div>
+                                <div class="schedule-details">
+                                    <div class="schedule-title">Runs {{ report.frequency }}</div>
+                                    <div class="schedule-description">Next run: {{ report.next_run }}</div>
+                                </div>
+                                <div>
+                                    <button class="btn btn-sm btn-outline-secondary">Edit</button>
+                                </div>
+                            </div>
+                            <div class="report-meta mt-3">
+                                <span class="report-meta-item">
+                                    <i class="fas fa-envelope"></i> Sent to: {{ report.recipients }}
+                                </span>
+                                <span class="report-meta-item">
+                                    <i class="fas fa-file"></i> Format: {{ report.format }}
+                                </span>
+                            </div>
+                            <div class="report-actions mt-3">
+                                <button class="report-action-button action-generate">
+                                    <i class="fas fa-play"></i> Run Now
+                                </button>
+                                <button class="report-action-button action-download">
+                                    <i class="fas fa-pause"></i> Pause Schedule
+                                </button>
+                                <button class="report-action-button action-download">
+                                    <i class="fas fa-trash"></i> Delete
+                                </button>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle mr-2"></i>
+                            No scheduled reports found. You can schedule reports for automatic generation and delivery.
+                        </div>
+                        <div class="text-center mt-4">
+                            <button class="btn btn-primary">
+                                <i class="fas fa-plus mr-1"></i> Schedule Your First Report
+                            </button>
+                        </div>
+                    {% endif %}
+                </div>
+                
+                <!-- Report History Tab -->
+                <div id="report-history" class="tab-content">
+                    {% if recent_reports %}
+                        <div class="table-responsive">
+                            <table class="table">
+                                <thead>
+                                    <tr>
+                                        <th>Report Name</th>
+                                        <th>Generated</th>
+                                        <th>Created By</th>
+                                        <th>Format</th>
+                                        <th>Status</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for report in recent_reports %}
+                                    <tr>
+                                        <td>{{ report.name }}</td>
+                                        <td>{{ report.generated_at }}</td>
+                                        <td>{{ report.created_by }}</td>
+                                        <td>{{ report.format }}</td>
+                                        <td>
+                                            <span class="report-status status-{{ report.status|lower }}">{{ report.status }}</span>
+                                        </td>
+                                        <td>
+                                            <button class="btn btn-sm btn-outline-primary">
+                                                <i class="fas fa-download"></i>
+                                            </button>
+                                            <button class="btn btn-sm btn-outline-secondary">
+                                                <i class="fas fa-share"></i>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle mr-2"></i>
+                            No report history found. Once you generate reports, they will appear here.
+                        </div>
+                    {% endif %}
+                </div>
+                
+                <!-- Templates Tab -->
+                <div id="templates" class="tab-content">
+                    <div class="alert alert-info mb-4">
+                        <i class="fas fa-info-circle mr-2"></i>
+                        Report templates allow you to save custom configurations for reuse. Create a template once and use it to generate reports with consistent settings.
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-lg-4 col-md-6">
+                            <div class="report-card">
+                                <div class="report-header">
+                                    <h3 class="report-title">Create New Template</h3>
+                                </div>
+                                <div class="text-center p-4">
+                                    <div style="width: 70px; height: 70px; margin: 0 auto 20px; background: var(--gray-1); border-radius: 50%; display: flex; align-items: center; justify-content: center;" nonce="{{ nonce }}">
+                                        <i class="fas fa-plus" style="font-size: 24px; color: var(--gray-4);" nonce="{{ nonce }}"></i>
+                                    </div>
+                                    <p>Start with a blank template or clone an existing one</p>
+                                    <button class="btn btn-primary mt-3">
+                                        Create Template
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="col-lg-4 col-md-6">
+                            <div class="report-card">
+                                <div class="report-header">
+                                    <h3 class="report-title">Weekly Security Summary</h3>
+                                </div>
+                                <p class="report-description">Weekly overview of security events and policy violations</p>
+                                <div class="report-meta">
+                                    <span class="report-meta-item">
+                                        <i class="fas fa-calendar-alt"></i> Created: Apr 25, 2025
+                                    </span>
+                                </div>
+                                <div class="report-actions">
+                                    <button class="report-action-button action-generate">
+                                        <i class="fas fa-play"></i> Use Template
+                                    </button>
+                                    <button class="report-action-button action-download">
+                                        <i class="fas fa-edit"></i> Edit
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="col-lg-4 col-md-6">
+                            <div class="report-card">
+                                <div class="report-header">
+                                    <h3 class="report-title">Monthly Activity Digest</h3>
+                                </div>
+                                <p class="report-description">Monthly summary of user activities and application usage</p>
+                                <div class="report-meta">
+                                    <span class="report-meta-item">
+                                        <i class="fas fa-calendar-alt"></i> Created: Apr 12, 2025
+                                    </span>
+                                </div>
+                                <div class="report-actions">
+                                    <button class="report-action-button action-generate">
+                                        <i class="fas fa-play"></i> Use Template
+                                    </button>
+                                    <button class="report-action-button action-download">
+                                        <i class="fas fa-edit"></i> Edit
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Export Options Section -->
+        <div class="content-card">
+            <div class="card-header">
+                <h2 class="card-title">Export Settings</h2>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h5 class="font-weight-bold mb-3">Default Export Format</h5>
+                        <div class="form-group">
+                            <div class="custom-control custom-radio">
+                                <input type="radio" id="format-pdf" name="exportFormat" class="custom-control-input" checked>
+                                <label class="custom-control-label" for="format-pdf">PDF</label>
+                            </div>
+                            <div class="custom-control custom-radio mt-2">
+                                <input type="radio" id="format-excel" name="exportFormat" class="custom-control-input">
+                                <label class="custom-control-label" for="format-excel">Excel (.xlsx)</label>
+                            </div>
+                            <div class="custom-control custom-radio mt-2">
+                                <input type="radio" id="format-csv" name="exportFormat" class="custom-control-input">
+                                <label class="custom-control-label" for="format-csv">CSV</label>
+                            </div>
+                            <div class="custom-control custom-radio mt-2">
+                                <input type="radio" id="format-json" name="exportFormat" class="custom-control-input">
+                                <label class="custom-control-label" for="format-json">JSON</label>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-6">
+                        <h5 class="font-weight-bold mb-3">Delivery Options</h5>
+                        <div class="form-group">
+                            <div class="custom-control custom-checkbox">
+                                <input type="checkbox" class="custom-control-input" id="delivery-email" checked>
+                                <label class="custom-control-label" for="delivery-email">Email reports</label>
+                            </div>
+                            <div class="custom-control custom-checkbox mt-2">
+                                <input type="checkbox" class="custom-control-input" id="delivery-download" checked>
+                                <label class="custom-control-label" for="delivery-download">Keep in dashboard for download</label>
+                            </div>
+                            <div class="custom-control custom-checkbox mt-2">
+                                <input type="checkbox" class="custom-control-input" id="delivery-storage">
+                                <label class="custom-control-label" for="delivery-storage">Upload to storage (S3, Azure, etc.)</label>
+                            </div>
+                            <div class="custom-control custom-checkbox mt-2">
+                                <input type="checkbox" class="custom-control-input" id="delivery-webhook">
+                                <label class="custom-control-label" for="delivery-webhook">Send via webhook</label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <hr class="my-4">
+                
+                <div class="row">
+                    <div class="col-md-6">
+                        <h5 class="font-weight-bold mb-3">Report Retention</h5>
+                        <div class="form-group">
+                            <label>Keep reports for</label>
+                            <select class="form-control">
+                                <option>7 days</option>
+                                <option>14 days</option>
+                                <option selected>30 days</option>
+                                <option>60 days</option>
+                                <option>90 days</option>
+                                <option>1 year</option>
+                                <option>Forever</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-6">
+                        <h5 class="font-weight-bold mb-3">Default Recipients</h5>
+                        <div class="form-group">
+                            <input type="text" class="form-control" placeholder="Enter email addresses">
+                            <small class="form-text text-muted">Separate multiple addresses with commas</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="card-footer text-right">
+                <button class="btn btn-primary">
+                    Save Export Settings
+                </button>
+                <button class="btn btn-outline-secondary ml-2">
+                    Reset to Defaults
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Schedule Report Modal -->
+    <div class="modal fade" id="scheduleReportModal" tabindex="-1" role="dialog" aria-labelledby="scheduleReportModalLabel" aria-hidden="true">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="scheduleReportModalLabel">Schedule Report</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <form>
+                        <div class="form-group">
+                            <label>Report Name</label>
+                            <input type="text" class="form-control" value="User Activity Report" readonly>
+                        </div>
+                        <div class="form-group">
+                            <label>Frequency</label>
+                            <select class="form-control">
+                                <option>Daily</option>
+                                <option selected>Weekly</option>
+                                <option>Bi-weekly</option>
+                                <option>Monthly</option>
+                                <option>Quarterly</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Day of Week</label>
+                            <select class="form-control">
+                                <option>Monday</option>
+                                <option selected>Tuesday</option>
+                                <option>Wednesday</option>
+                                <option>Thursday</option>
+                                <option>Friday</option>
+                                <option>Saturday</option>
+                                <option>Sunday</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Time</label>
+                            <input type="time" class="form-control" value="08:00">
+                            <small class="form-text text-muted">Server time (UTC)</small>
+                        </div>
+                        <div class="form-group">
+                            <label>Format</label>
+                            <select class="form-control">
+                                <option selected>PDF</option>
+                                <option>Excel (.xlsx)</option>
+                                <option>CSV</option>
+                                <option>JSON</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Recipients</label>
+                            <input type="text" class="form-control" placeholder="Enter email addresses">
+                            <small class="form-text text-muted">Separate multiple addresses with commas</small>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary">Schedule Report</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- JavaScript -->
+    <script src="{% static 'rest_framework/js/jquery-3.7.1.min.js' %}"></script>
+    <script src="{% static 'rest_framework/js/bootstrap.min.js' %}"></script>
+    <script nonce="{{ nonce }}">
+        // Toggle sidebar on mobile
+        document.querySelector('.sidebar-toggle').addEventListener('click', function() {
+            document.querySelector('.sidebar').classList.toggle('show');
+        });
+        
+        // Tab functionality
+        document.querySelectorAll('.tab-button').forEach(button => {
+            button.addEventListener('click', () => {
+                // Remove active class from all buttons and contents
+                document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
+                document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+                
+                // Add active class to clicked button
+                button.classList.add('active');
+                
+                // Show corresponding content
+                const tabId = button.dataset.tab;
+                document.getElementById(tabId).classList.add('active');
+            });
+        });
+        
+        // Connect schedule buttons to modal
+        document.querySelectorAll('.action-schedule').forEach(button => {
+            button.addEventListener('click', function() {
+                $('#scheduleReportModal').modal('show');
+            });
+        });
+        
+        // Tooltip for buttons (requires Bootstrap initialization)
+        $(function () {
+            $('[data-toggle="tooltip"]').tooltip();
+        });
+    </script>
+</body>
+</html>

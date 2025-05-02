@@ -46,7 +46,7 @@ def login_view(request: HttpRequest) -> HttpResponse:
     logger.debug(f"Generated OAuth state: {state[:5]}... (Session ID: {request.session.session_key})")
     
     # Store the URL to redirect to after successful authentication
-    next_url = request.GET.get('next', reverse('traffic_analysis:event_list'))
+    next_url = request.GET.get('next', '/dashboard')
     request.session['next_url'] = next_url
     
     # Generate authorization URL and redirect user

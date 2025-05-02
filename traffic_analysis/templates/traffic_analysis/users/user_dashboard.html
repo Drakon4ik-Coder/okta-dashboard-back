@@ -1,0 +1,1696 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Okta Events Dashboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="{% static 'traffic_analysis/css/euclid-circular-a.css' %}">
+    <link rel="stylesheet" href="{% static 'rest_framework/css/bootstrap.min.css' %}">
+    <link rel="stylesheet" href="{% static 'traffic_analysis/css/font-awesome.min.css' %}">
+    <link rel="stylesheet" href="{% static 'traffic_analysis/css/chart.min.css' %}">
+    <style nonce="{{ nonce }}">
+        :root {
+            --green-1: #00ED64;
+            --green-2: #01C853;
+            --blue-1: #0D6EFD;
+            --blue-2: #0953C7;
+            --dark-1: #001E2B;
+            --dark-2: #023430;
+            --gray-1: #F9FBFA;
+            --gray-2: #E8EDEB;
+            --gray-3: #C1C7C6;
+            --gray-4: #889392;
+            --red-1: #EF6C00;
+            --red-2: #DB3030;
+            --yellow-1: #FFCA28;
+            --purple-1: #6E31E0;
+        }
+        
+        body {
+            font-family: 'Euclid Circular A', sans-serif;
+            background-color: var(--gray-1);
+            color: var(--dark-1);
+            line-height: 1.6;
+        }
+        
+        /* Utility classes */
+        .mr-1 {
+            margin-right: 0.25rem !important;
+        }
+        
+        .ml-2 {
+            margin-left: 0.5rem !important;
+        }
+        
+        /* Sidebar styles */
+        .sidebar {
+            background-color: white;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.05);
+            height: 100vh;
+            position: fixed;
+            padding: 0;
+            width: 250px;
+            z-index: 100;
+            transition: all 0.3s;
+            overflow-y: auto;
+        }
+        
+        .sidebar-header {
+            padding: 20px;
+            border-bottom: 1px solid var(--gray-2);
+        }
+        
+        .sidebar-brand {
+            font-weight: 700;
+            font-size: 1.3rem;
+            color: var(--dark-1);
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+        }
+        
+        .sidebar-brand:hover {
+            text-decoration: none;
+            color: var(--dark-1);
+        }
+        
+        .sidebar-brand span {
+            color: var(--green-2);
+        }
+        
+        .nav-item {
+            margin-bottom: 5px;
+        }
+        
+        .nav-link {
+            padding: 12px 20px;
+            color: var(--gray-4);
+            display: flex;
+            align-items: center;
+            transition: all 0.3s;
+            border-left: 4px solid transparent;
+            font-weight: 500;
+        }
+        
+        .nav-link i {
+            margin-right: 10px;
+            font-size: 1.1rem;
+            width: 24px;
+        }
+        
+        .nav-link:hover {
+            color: var(--dark-1);
+            background-color: var(--gray-1);
+        }
+        
+        .nav-link.active {
+            color: var(--green-2);
+            border-left: 4px solid var(--green-2);
+            background-color: rgba(1, 200, 83, 0.05);
+            font-weight: 600;
+        }
+        
+        .main-content {
+            margin-left: 250px;
+            padding: 20px;
+            transition: all 0.3s;
+        }
+        
+        .topbar {
+            background-color: white;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+            padding: 15px 25px;
+            margin-bottom: 25px;
+            border-radius: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .page-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: var(--dark-1);
+            margin: 0;
+        }
+        
+        .page-description {
+            color: var(--gray-4);
+            font-size: 1rem;
+            max-width: 700px;
+        }
+        
+        .user-dropdown {
+            display: flex;
+            align-items: center;
+            cursor: pointer;
+        }
+        
+        .user-info {
+            margin-right: 15px;
+            text-align: right;
+        }
+        
+        .user-name {
+            font-weight: 600;
+            color: var(--dark-1);
+            font-size: 0.9rem;
+        }
+        
+        .user-role {
+            color: var(--gray-4);
+            font-size: 0.75rem;
+        }
+        
+        .user-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background-color: var(--green-1);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            font-size: 1rem;
+            box-shadow: 0 3px 6px rgba(1, 200, 83, 0.2);
+        }
+        
+        /* Stat card styles */
+        .stat-card {
+            background-color: white;
+            border-radius: 12px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+            padding: 20px;
+            margin-bottom: 25px;
+            transition: all 0.3s;
+            height: 100%;
+        }
+        
+        .stat-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 7px 15px rgba(0, 0, 0, 0.1);
+        }
+        
+        .stat-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        
+        .stat-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 15px;
+            flex-shrink: 0;
+        }
+        
+        .stat-icon i {
+            font-size: 24px;
+            color: white;
+        }
+        
+        .icon-primary {
+            background-color: rgba(13, 110, 253, 0.1);
+        }
+        
+        .icon-primary i {
+            color: var(--blue-1);
+        }
+        
+        .icon-success {
+            background-color: rgba(1, 200, 83, 0.1);
+        }
+        
+        .icon-success i {
+            color: var(--green-2);
+        }
+        
+        .icon-warning {
+            background-color: rgba(255, 202, 40, 0.1);
+        }
+        
+        .icon-warning i {
+            color: var(--yellow-1);
+        }
+        
+        .icon-danger {
+            background-color: rgba(219, 48, 48, 0.1);
+        }
+        
+        .icon-danger i {
+            color: var(--red-2);
+        }
+        
+        .icon-purple {
+            background-color: rgba(110, 49, 224, 0.1);
+        }
+        
+        .icon-purple i {
+            color: var(--purple-1);
+        }
+        
+        .stat-title {
+            color: var(--gray-4);
+            font-size: 0.9rem;
+            font-weight: 500;
+            margin: 0;
+            padding: 0;
+        }
+        
+        .stat-value {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--dark-1);
+            margin: 0;
+            padding: 0;
+            line-height: 1.2;
+        }
+        
+        .stat-footer {
+            display: flex;
+            align-items: center;
+            margin-top: 15px;
+            font-size: 0.8rem;
+        }
+        
+        .stat-trend {
+            display: flex;
+            align-items: center;
+        }
+        
+        .trend-up {
+            color: var(--green-2);
+            font-weight: 600;
+        }
+        
+        .trend-down {
+            color: var(--red-2);
+            font-weight: 600;
+        }
+        
+        .trend-neutral {
+            color: var(--gray-4);
+            font-weight: 600;
+        }
+        
+        .stat-period {
+            color: var (--gray-4);
+            margin-left: auto;
+        }
+
+        /* Content card */
+        .content-card {
+            background-color: white;
+            border-radius: 12px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+            padding: 0;
+            margin-bottom: 25px;
+            overflow: hidden;
+        }
+        
+        .card-header {
+            padding: 20px;
+            border-bottom: 1px solid var(--gray-2);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .card-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--dark-1);
+            margin: 0;
+        }
+
+        .card-body {
+            padding: 20px;
+        }
+        
+        .card-footer {
+            padding: 15px 20px;
+            border-top: 1px solid var(--gray-2);
+        }
+        
+        /* Chart container */
+        .chart-container {
+            height: 300px;
+            position: relative;
+        }
+
+        /* Search and filter section */
+        .search-section {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .search-input {
+            flex: 1;
+            position: relative;
+            min-width: 200px;
+        }
+
+        .search-input input {
+            width: 100%;
+            padding: 10px 15px 10px 40px;
+            border: 1px solid var(--gray-2);
+            border-radius: 8px;
+            font-size: 0.9rem;
+        }
+
+        .search-input i {
+            position: absolute;
+            left: 15px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--gray-4);
+        }
+
+        .filter-button {
+            background-color: white;
+            border: 1px solid var(--gray-2);
+            color: var(--gray-4);
+            padding: 10px 15px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .filter-button:hover {
+            border-color: var(--gray-3);
+            color: var(--dark-1);
+        }
+
+        /* User table styles */
+        .user-table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+        }
+        
+        .user-table th {
+            background-color: var(--gray-1);
+            color: var(--dark-1);
+            font-weight: 600;
+            font-size: 0.9rem;
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid var(--gray-2);
+        }
+        
+        .user-table td {
+            padding: 15px;
+            vertical-align: middle;
+            border-bottom: 1px solid var(--gray-2);
+            font-size: 0.9rem;
+        }
+        
+        .user-table tr:last-child td {
+            border-bottom: none;
+        }
+        
+        .user-table tr:hover {
+            background-color: var(--gray-1);
+        }
+        
+        .user-name-cell {
+            display: flex;
+            align-items: center;
+        }
+        
+        .user-initials {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            font-size: 0.8rem;
+            margin-right: 12px;
+        }
+        
+        .user-details {
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .user-fullname {
+            font-weight: 500;
+            color: var(--dark-1);
+            margin-bottom: 3px;
+        }
+        
+        .user-email {
+            color: var(--gray-4);
+            font-size: 0.8rem;
+        }
+        
+        .user-status {
+            padding: 4px 8px;
+            border-radius: 100px;
+            font-size: 0.7rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        
+        .status-active {
+            background-color: rgba(1, 200, 83, 0.1);
+            color: var (--green-2);
+        }
+        
+        .status-inactive {
+            background-color: rgba(136, 147, 146, 0.1);
+            color: var(--gray-4);
+        }
+        
+        .status-suspended {
+            background-color: rgba(219, 48, 48, 0.1);
+            color: var(--red-2);
+        }
+        
+        .status-locked {
+            background-color: rgba(255, 202, 40, 0.1);
+            color: var(--yellow-1);
+        }
+        
+        .badge-mfa {
+            background-color: rgba(13, 110, 253, 0.1);
+            color: var (--blue-1);
+            padding: 4px 8px;
+            border-radius: 100px;
+            font-size: 0.7rem;
+            font-weight: 600;
+            margin-right: 5px;
+        }
+        
+        .action-button {
+            background: none;
+            border: none;
+            color: var(--blue-1);
+            cursor: pointer;
+            padding: 5px;
+            border-radius: 4px;
+            transition: all 0.3s;
+        }
+        
+        .action-button:hover {
+            background-color: rgba(13, 110, 253, 0.1);
+        }
+
+        .action-icon {
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 4px;
+            cursor: pointer;
+            color: var(--gray-4);
+        }
+        
+        .action-icon:hover {
+            background-color: var(--gray-1);
+            color: var(--dark-1);
+        }
+
+        /* User profile card */
+        .user-profile-card {
+            display: flex;
+            align-items: flex-start;
+            padding: 20px;
+        }
+
+        .profile-avatar {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            font-size: 1.8rem;
+            margin-right: 20px;
+            flex-shrink: 0;
+        }
+
+        .profile-info {
+            flex: 1;
+        }
+
+        .profile-name {
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin-bottom: 5px;
+        }
+
+        .profile-email {
+            color: var(--gray-4);
+            margin-bottom: 10px;
+        }
+
+        .profile-meta {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+
+        .meta-item {
+            display: flex;
+            align-items: center;
+        }
+
+        .meta-label {
+            color: var(--gray-4);
+            margin-right: 5px;
+            font-size: 0.9rem;
+        }
+
+        .meta-value {
+            font-weight: 500;
+            color: var(--dark-1);
+            font-size: 0.9rem;
+        }
+
+        /* Tabs styling */
+        .tab-buttons {
+            display: flex;
+            border-bottom: 1px solid var(--gray-2);
+            margin-bottom: 20px;
+            overflow-x: auto;
+            flex-wrap: wrap;
+        }
+
+        .tab-button {
+            padding: 12px 20px;
+            font-weight: 500;
+            color: var (--gray-4);
+            background: transparent;
+            border: none;
+            border-bottom: 2px solid transparent;
+            cursor: pointer;
+            transition: all 0.2s;
+            white-space: nowrap;
+        }
+
+        .tab-button:hover {
+            color: var(--dark-1);
+        }
+
+        .tab-button.active {
+            color: var(--green-2);
+            border-bottom-color: var(--green-2);
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        /* Timeline styles */
+        .timeline {
+            position: relative;
+            max-width: 100%;
+            margin: 0 auto;
+        }
+
+        .timeline::after {
+            content: '';
+            position: absolute;
+            width: 2px;
+            background-color: var(--gray-2);
+            top: 0;
+            bottom: 0;
+            left: 20px;
+            margin-left: -1px;
+        }
+
+        .timeline-item {
+            padding: 10px 40px;
+            position: relative;
+        }
+
+        .timeline-icon {
+            position: absolute;
+            width: 40px;
+            height: 40px;
+            left: 0;
+            background-color: white;
+            border: 2px solid var(--gray-2);
+            border-radius: 50%;
+            z-index: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--dark-1);
+        }
+
+        .timeline-content {
+            position: relative;
+            padding: 15px;
+            background-color: var(--gray-1);
+            border-radius: 8px;
+        }
+
+        .timeline-time {
+            color: var(--gray-4);
+            font-size: 0.8rem;
+            margin-bottom: 5px;
+        }
+
+        .timeline-title {
+            font-weight: 600;
+            margin-bottom: 5px;
+        }
+
+        .timeline-description {
+            color: var(--dark-1);
+            font-size: 0.9rem;
+        }
+
+        /* Badge list */
+        .badge-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .badge-item {
+            display: flex;
+            align-items: center;
+            background-color: var(--gray-1);
+            border-radius: 100px;
+            padding: 5px 12px;
+            font-size: 0.8rem;
+            font-weight: 500;
+        }
+
+        .badge-item i {
+            margin-right: 5px;
+            font-size: 0.9rem;
+        }
+
+        /* Responsive fixes */
+        @media (max-width: 991px) {
+            .sidebar {
+                width: 80px;
+            }
+            
+            .sidebar-brand {
+                justify-content: center;
+            }
+            
+            .sidebar-brand span, .nav-link span, .sidebar-text {
+                display: none;
+            }
+            
+            .nav-link {
+                justify-content: center;
+                padding: 15px;
+            }
+            
+            .nav-link i {
+                margin-right: 0;
+                font-size: 1.3rem;
+            }
+            
+            .main-content {
+                margin-left: 80px;
+            }
+
+            .user-table {
+                min-width: 800px;
+            }
+
+            .table-responsive {
+                overflow-x: auto;
+            }
+        }
+        
+        @media (max-width: 767px) {
+            .sidebar {
+                width: 0;
+                left: -250px;
+            }
+            
+            .main-content {
+                margin-left: 0;
+            }
+            
+            .sidebar.show {
+                width: 250px;
+                left: 0;
+                box-shadow: 0 0 30px rgba(0, 0, 0, 0.2);
+            }
+            
+            .sidebar.show .sidebar-brand span, .sidebar.show .nav-link span, .sidebar.show .sidebar-text {
+                display: inline;
+            }
+            
+            .sidebar.show .nav-link {
+                justify-content: flex-start;
+                padding: 12px 20px;
+            }
+            
+            .sidebar.show .nav-link i {
+                margin-right: 10px;
+                font-size: 1.1rem;
+            }
+
+            .row {
+                margin-left: -10px;
+                margin-right: -10px;
+            }
+
+            .col-md-3, .col-md-6, .col-lg-8, .col-lg-4 {
+                padding-left: 10px;
+                padding-right: 10px;
+            }
+
+            .topbar {
+                flex-direction: column;
+                padding: 15px;
+                text-align: center;
+            }
+
+            .page-title {
+                margin-bottom: 10px;
+            }
+
+            .card-header {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+
+            .search-section {
+                flex-direction: column;
+            }
+
+            .search-input {
+                width: 100%;
+            }
+
+            .filter-button {
+                width: 100%;
+                justify-content: center;
+            }
+
+            .user-profile-card {
+                flex-direction: column;
+                align-items: center;
+                text-align: center;
+            }
+
+            .profile-avatar {
+                margin-right: 0;
+                margin-bottom: 15px;
+            }
+
+            .profile-meta {
+                justify-content: center;
+            }
+        }
+        
+        /* Toggle button for sidebar */
+        .sidebar-toggle {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            width: 40px;
+            height: 40px;
+            background-color: var(--green-2);
+            color: white;
+            border-radius: 50%;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            cursor: pointer;
+            box-shadow: 0 3px 10px rgba(1, 200, 83, 0.3);
+        }
+        
+        @media (max-width: 767px) {
+            .sidebar-toggle {
+                display: flex;
+            }
+            
+            .topbar {
+                margin-top: 30px;
+            }
+        }
+
+        /* Pagination */
+        .pagination {
+            display: flex;
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            justify-content: center;
+        }
+
+        .page-item {
+            margin: 0 3px;
+        }
+
+        .page-link {
+            width: 36px;
+            height: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 8px;
+            color: var(--dark-1);
+            background-color: white;
+            border: 1px solid var(--gray-2);
+            font-weight: 500;
+            transition: all 0.3s;
+        }
+
+        .page-link:hover {
+            background-color: var(--gray-1);
+            text-decoration: none;
+        }
+
+        .page-item.active .page-link {
+            background-color: var(--green-2);
+            color: white;
+            border-color: var(--green-2);
+        }
+
+        .page-item.disabled .page-link {
+            color: var(--gray-3);
+            cursor: not-allowed;
+        }
+
+        /* Color classes for user initials */
+        .bg-blue-1 {
+            background-color: #0D6EFD;
+        }
+        
+        .bg-green-2 {
+            background-color: #01C853;
+        }
+        
+        .bg-yellow-1 {
+            background-color: #FFCA28;
+        }
+        
+        .bg-red-2 {
+            background-color: #DB3030;
+        }
+        
+        .bg-purple-1 {
+            background-color: #6E31E0;
+        }
+    </style>
+</head>
+<body>
+    <!-- Sidebar Toggle Button -->
+    <div class="sidebar-toggle">
+        <i class="fas fa-bars"></i>
+    </div>
+    
+    <!-- Sidebar -->
+    <div class="sidebar">
+        <div class="sidebar-header">
+            <a href="/dashboard/" class="sidebar-brand">
+                Okta<span>Analytics</span>
+            </a>
+        </div>
+        
+        <div class="pt-3">
+            <ul class="nav flex-column">
+                <li class="nav-item">
+                    <a class="nav-link" href="/dashboard/">
+                        <i class="fas fa-chart-pie"></i>
+                        <span>Dashboard</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="/events/">
+                        <i class="fas fa-list-alt"></i>
+                        <span>Events</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link active" href="/users/">
+                        <i class="fas fa-users"></i>
+                        <span>Users</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="/alerts/">
+                        <i class="fas fa-bell"></i>
+                        <span>Alerts</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="/metrics/">
+                        <i class="fas fa-chart-line"></i>
+                        <span>Metrics</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="/reports/">
+                        <i class="fas fa-file-alt"></i>
+                        <span>Reports</span>
+                    </a>
+                </li>
+                <li class="nav-item mt-5">
+                    <a class="nav-link" href="/settings/">
+                        <i class="fas fa-cog"></i>
+                        <span>Settings</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="/logout/">
+                        <i class="fas fa-sign-out-alt"></i>
+                        <span>Logout</span>
+                    </a>
+                </li>
+            </ul>
+        </div>
+    </div>
+    
+    <!-- Main Content -->
+    <div class="main-content">
+        <!-- Topbar -->
+        <div class="topbar">
+            <div>
+                <h1 class="page-title">User Management</h1>
+                <p class="page-description">View and manage users across your Okta organization.</p>
+            </div>
+            <div class="user-dropdown">
+                <div class="user-info">
+                    <div class="user-name">Admin User</div>
+                    <div class="user-role">Administrator</div>
+                </div>
+                <div class="user-avatar">A</div>
+            </div>
+        </div>
+        
+        <!-- Stats Overview -->
+        <div class="row">
+            <div class="col-md-3">
+                <div class="stat-card">
+                    <div class="stat-header">
+                        <div class="stat-icon icon-primary">
+                            <i class="fas fa-users"></i>
+                        </div>
+                        <div>
+                            <div class="stat-title">TOTAL USERS</div>
+                            <div class="stat-value">{{ total_users }}</div>
+                        </div>
+                    </div>
+                    <div class="stat-footer">
+                        <div class="stat-trend trend-up">
+                            <i class="fas fa-arrow-up mr-1"></i> 5.2%
+                        </div>
+                        <div class="stat-period">vs. previous 30 days</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="stat-card">
+                    <div class="stat-header">
+                        <div class="stat-icon icon-success">
+                            <i class="fas fa-user-check"></i>
+                        </div>
+                        <div>
+                            <div class="stat-title">ACTIVE USERS</div>
+                            <div class="stat-value">{{ active_users }}</div>
+                        </div>
+                    </div>
+                    <div class="stat-footer">
+                        <div class="stat-trend trend-up">
+                            <i class="fas fa-arrow-up mr-1"></i> 3.8%
+                        </div>
+                        <div class="stat-period">vs. previous 30 days</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="stat-card">
+                    <div class="stat-header">
+                        <div class="stat-icon icon-warning">
+                            <i class="fas fa-user-clock"></i>
+                        </div>
+                        <div>
+                            <div class="stat-title">INACTIVE USERS</div>
+                            <div class="stat-value">{{ inactive_users }}</div>
+                        </div>
+                    </div>
+                    <div class="stat-footer">
+                        <div class="stat-trend trend-down">
+                            <i class="fas fa-arrow-down mr-1"></i> 2.1%
+                        </div>
+                        <div class="stat-period">vs. previous 30 days</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="stat-card">
+                    <div class="stat-header">
+                        <div class="stat-icon icon-danger">
+                            <i class="fas fa-user-lock"></i>
+                        </div>
+                        <div>
+                            <div class="stat-title">LOCKED ACCOUNTS</div>
+                            <div class="stat-value">{{ locked_accounts }}</div>
+                        </div>
+                    </div>
+                    <div class="stat-footer">
+                        <div class="stat-trend trend-neutral">
+                            <i class="fas fa-minus mr-1"></i> 0%
+                        </div>
+                        <div class="stat-period">vs. previous 30 days</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Users List -->
+        <div class="content-card">
+            <div class="card-header">
+                <h2 class="card-title">Users</h2>
+                <div>
+                    <button class="btn btn-sm btn-primary">
+                        <i class="fas fa-plus"></i> Add User
+                    </button>
+                    <button class="btn btn-sm btn-outline-secondary ml-2">
+                        <i class="fas fa-download"></i> Export
+                    </button>
+                </div>
+            </div>
+            <div class="card-body">
+                <!-- Search and Filter -->
+                <div class="search-section">
+                    <div class="search-input">
+                        <i class="fas fa-search"></i>
+                        <input type="text" placeholder="Search users...">
+                    </div>
+                    <button class="filter-button">
+                        <i class="fas fa-filter"></i> Status
+                    </button>
+                    <button class="filter-button">
+                        <i class="fas fa-filter"></i> Groups
+                    </button>
+                    <button class="filter-button">
+                        <i class="fas fa-filter"></i> Last Login
+                    </button>
+                </div>
+                
+                <!-- Users Table -->
+                <div class="table-responsive">
+                    <table class="user-table">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Status</th>
+                                <th>Groups</th>
+                                <th>Created</th>
+                                <th>Last Login</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- User 1 -->
+                            <tr>
+                                <td>
+                                    <div class="user-name-cell">
+                                        <div class="user-initials bg-blue-1">JD</div>
+                                        <div class="user-details">
+                                            <div class="user-fullname">John Doe</div>
+                                            <div class="user-email">john.doe@example.com</div>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td><span class="user-status status-active">Active</span></td>
+                                <td>
+                                    <div class="badge-list">
+                                        <div class="badge-item">IT Staff</div>
+                                        <div class="badge-item">Admin</div>
+                                    </div>
+                                </td>
+                                <td>Jan 12, 2023</td>
+                                <td>May 1, 2025, 9:23 AM</td>
+                                <td>
+                                    <div class="d-flex">
+                                        <div class="action-icon" title="Edit User">
+                                            <i class="fas fa-edit"></i>
+                                        </div>
+                                        <div class="action-icon" title="Reset Password">
+                                            <i class="fas fa-key"></i>
+                                        </div>
+                                        <div class="action-icon" title="Suspend User">
+                                            <i class="fas fa-ban"></i>
+                                        </div>
+                                    </div>
+                                </td>
+                            </tr>
+                            
+                            <!-- User 2 -->
+                            <tr>
+                                <td>
+                                    <div class="user-name-cell">
+                                        <div class="user-initials bg-green-2">JS</div>
+                                        <div class="user-details">
+                                            <div class="user-fullname">Jane Smith</div>
+                                            <div class="user-email">jane.smith@example.com</div>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td><span class="user-status status-active">Active</span></td>
+                                <td>
+                                    <div class="badge-list">
+                                        <div class="badge-item">Marketing</div>
+                                        <div class="badge-item">External</div>
+                                    </div>
+                                </td>
+                                <td>Mar 3, 2023</td>
+                                <td>Apr 30, 2025, 2:15 PM</td>
+                                <td>
+                                    <div class="d-flex">
+                                        <div class="action-icon" title="Edit User">
+                                            <i class="fas fa-edit"></i>
+                                        </div>
+                                        <div class="action-icon" title="Reset Password">
+                                            <i class="fas fa-key"></i>
+                                        </div>
+                                        <div class="action-icon" title="Suspend User">
+                                            <i class="fas fa-ban"></i>
+                                        </div>
+                                    </div>
+                                </td>
+                            </tr>
+                            
+                            <!-- User 3 -->
+                            <tr>
+                                <td>
+                                    <div class="user-name-cell">
+                                        <div class="user-initials bg-yellow-1">RJ</div>
+                                        <div class="user-details">
+                                            <div class="user-fullname">Robert Johnson</div>
+                                            <div class="user-email">robert.johnson@example.com</div>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td><span class="user-status status-inactive">Inactive</span></td>
+                                <td>
+                                    <div class="badge-list">
+                                        <div class="badge-item">Sales</div>
+                                    </div>
+                                </td>
+                                <td>Oct 15, 2023</td>
+                                <td>Mar 17, 2025, 10:45 AM</td>
+                                <td>
+                                    <div class="d-flex">
+                                        <div class="action-icon" title="Edit User">
+                                            <i class="fas fa-edit"></i>
+                                        </div>
+                                        <div class="action-icon" title="Reset Password">
+                                            <i class="fas fa-key"></i>
+                                        </div>
+                                        <div class="action-icon" title="Activate User">
+                                            <i class="fas fa-check-circle"></i>
+                                        </div>
+                                    </div>
+                                </td>
+                            </tr>
+                            
+                            <!-- User 4 -->
+                            <tr>
+                                <td>
+                                    <div class="user-name-cell">
+                                        <div class="user-initials bg-red-2">SW</div>
+                                        <div class="user-details">
+                                            <div class="user-fullname">Sarah Wilson</div>
+                                            <div class="user-email">sarah.wilson@example.com</div>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td><span class="user-status status-locked">Locked</span></td>
+                                <td>
+                                    <div class="badge-list">
+                                        <div class="badge-item">HR</div>
+                                        <div class="badge-item">Finance</div>
+                                    </div>
+                                </td>
+                                <td>Jul 22, 2024</td>
+                                <td>Apr 29, 2025, 8:12 AM</td>
+                                <td>
+                                    <div class="d-flex">
+                                        <div class="action-icon" title="Edit User">
+                                            <i class="fas fa-edit"></i>
+                                        </div>
+                                        <div class="action-icon" title="Reset Password">
+                                            <i class="fas fa-key"></i>
+                                        </div>
+                                        <div class="action-icon" title="Unlock User">
+                                            <i class="fas fa-unlock"></i>
+                                        </div>
+                                    </div>
+                                </td>
+                            </tr>
+                            
+                            <!-- User 5 -->
+                            <tr>
+                                <td>
+                                    <div class="user-name-cell">
+                                        <div class="user-initials bg-purple-1">MB</div>
+                                        <div class="user-details">
+                                            <div class="user-fullname">Michael Brown</div>
+                                            <div class="user-email">michael.brown@example.com</div>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td><span class="user-status status-suspended">Suspended</span></td>
+                                <td>
+                                    <div class="badge-list">
+                                        <div class="badge-item">Engineering</div>
+                                    </div>
+                                </td>
+                                <td>Nov 5, 2024</td>
+                                <td>Mar 15, 2025, 4:30 PM</td>
+                                <td>
+                                    <div class="d-flex">
+                                        <div class="action-icon" title="Edit User">
+                                            <i class="fas fa-edit"></i>
+                                        </div>
+                                        <div class="action-icon" title="Reset Password">
+                                            <i class="fas fa-key"></i>
+                                        </div>
+                                        <div class="action-icon" title="Unsuspend User">
+                                            <i class="fas fa-user-check"></i>
+                                        </div>
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                
+                <!-- Pagination -->
+                <div class="mt-4">
+                    <ul class="pagination">
+                        <li class="page-item disabled">
+                            <a class="page-link" href="#" aria-label="Previous">
+                                <span aria-hidden="true"><i class="fas fa-chevron-left"></i></span>
+                            </a>
+                        </li>
+                        <li class="page-item active"><a class="page-link" href="#">1</a></li>
+                        <li class="page-item"><a class="page-link" href="#">2</a></li>
+                        <li class="page-item"><a class="page-link" href="#">3</a></li>
+                        <li class="page-item">
+                            <a class="page-link" href="#" aria-label="Next">
+                                <span aria-hidden="true"><i class="fas fa-chevron-right"></i></span>
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+        
+        <!-- User Details Section -->
+        <div class="content-card">
+            <div class="card-header">
+                <h2 class="card-title">User Details</h2>
+                <div>
+                    <button class="btn btn-sm btn-outline-primary">
+                        <i class="fas fa-edit"></i> Edit Profile
+                    </button>
+                </div>
+            </div>
+            <div class="user-profile-card">
+                <div class="profile-avatar bg-blue-1">JD</div>
+                <div class="profile-info">
+                    <div class="profile-name">John Doe</div>
+                    <div class="profile-email">john.doe@example.com</div>
+                    <div class="profile-meta">
+                        <div class="meta-item">
+                            <span class="meta-label">Status:</span>
+                            <span class="meta-value"><span class="user-status status-active">Active</span></span>
+                        </div>
+                        <div class="meta-item">
+                            <span class="meta-label">ID:</span>
+                            <span class="meta-value">USER0001245</span>
+                        </div>
+                        <div class="meta-item">
+                            <span class="meta-label">Created:</span>
+                            <span class="meta-value">Jan 12, 2023</span>
+                        </div>
+                        <div class="meta-item">
+                            <span class="meta-label">Last Login:</span>
+                            <span class="meta-value">May 1, 2025, 9:23 AM</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="card-body pt-0">
+                <div class="tab-buttons">
+                    <button class="tab-button active" data-tab="groups">Groups & Roles</button>
+                    <button class="tab-button" data-tab="activity">Recent Activity</button>
+                    <button class="tab-button" data-tab="security">Security & MFA</button>
+                    <button class="tab-button" data-tab="apps">Applications</button>
+                    <button class="tab-button" data-tab="sessions">Active Sessions</button>
+                </div>
+                
+                <!-- Groups Tab -->
+                <div id="groups" class="tab-content active">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h5>Groups</h5>
+                            <div class="table-responsive">
+                                <table class="table">
+                                    <thead>
+                                        <tr>
+                                            <th>Name</th>
+                                            <th>Type</th>
+                                            <th>Added</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr>
+                                            <td>IT Staff</td>
+                                            <td>Security</td>
+                                            <td>Jan 12, 2023</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Admin</td>
+                                            <td>Security</td>
+                                            <td>Feb 24, 2023</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Okta Super Admin</td>
+                                            <td>System</td>
+                                            <td>Mar 15, 2023</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <h5>Roles</h5>
+                            <div class="table-responsive">
+                                <table class="table">
+                                    <thead>
+                                        <tr>
+                                            <th>Role</th>
+                                            <th>Scope</th>
+                                            <th>Assigned</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr>
+                                            <td>Super Administrator</td>
+                                            <td>Global</td>
+                                            <td>Mar 15, 2023</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Group Administrator</td>
+                                            <td>IT Staff</td>
+                                            <td>Apr 2, 2023</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Activity Tab -->
+                <div id="activity" class="tab-content">
+                    <div class="timeline">
+                        <div class="timeline-item">
+                            <div class="timeline-icon">
+                                <i class="fas fa-sign-in-alt"></i>
+                            </div>
+                            <div class="timeline-content">
+                                <div class="timeline-time">May 1, 2025, 9:23 AM</div>
+                                <div class="timeline-title">Login Successful</div>
+                                <div class="timeline-description">
+                                    User logged in from 192.168.1.45 (New York, USA) using Chrome on Windows 10.
+                                </div>
+                            </div>
+                        </div>
+                        <div class="timeline-item">
+                            <div class="timeline-icon">
+                                <i class="fas fa-sign-out-alt"></i>
+                            </div>
+                            <div class="timeline-content">
+                                <div class="timeline-time">Apr 30, 2025, 6:12 PM</div>
+                                <div class="timeline-title">Logout</div>
+                                <div class="timeline-description">
+                                    User logged out from all active sessions.
+                                </div>
+                            </div>
+                        </div>
+                        <div class="timeline-item">
+                            <div class="timeline-icon">
+                                <i class="fas fa-key"></i>
+                            </div>
+                            <div class="timeline-content">
+                                <div class="timeline-time">Apr 30, 2025, 9:45 AM</div>
+                                <div class="timeline-title">Password Changed</div>
+                                <div class="timeline-description">
+                                    User changed their account password.
+                                </div>
+                            </div>
+                        </div>
+                        <div class="timeline-item">
+                            <div class="timeline-icon">
+                                <i class="fas fa-sign-in-alt"></i>
+                            </div>
+                            <div class="timeline-content">
+                                <div class="timeline-time">Apr 30, 2025, 9:35 AM</div>
+                                <div class="timeline-title">Login Successful</div>
+                                <div class="timeline-description">
+                                    User logged in from 192.168.1.45 (New York, USA) using Chrome on Windows 10.
+                                </div>
+                            </div>
+                        </div>
+                        <div class="timeline-item">
+                            <div class="timeline-icon">
+                                <i class="fas fa-shield-alt"></i>
+                            </div>
+                            <div class="timeline-content">
+                                <div class="timeline-time">Apr 29, 2025, 3:20 PM</div>
+                                <div class="timeline-title">MFA Enrollment</div>
+                                <div class="timeline-description">
+                                    User enrolled a new authenticator app for multi-factor authentication.
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Security Tab -->
+                <div id="security" class="tab-content">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h5>Multi-Factor Authentication</h5>
+                            <div class="table-responsive">
+                                <table class="table">
+                                    <thead>
+                                        <tr>
+                                            <th>Method</th>
+                                            <th>Status</th>
+                                            <th>Last Used</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr>
+                                            <td>Authenticator App</td>
+                                            <td><span class="badge bg-success">Enrolled</span></td>
+                                            <td>May 1, 2025, 9:23 AM</td>
+                                        </tr>
+                                        <tr>
+                                            <td>SMS</td>
+                                            <td><span class="badge bg-success">Enrolled</span></td>
+                                            <td>Apr 15, 2025, 2:30 PM</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Security Key</td>
+                                            <td><span class="badge bg-secondary">Not Enrolled</span></td>
+                                            <td>-</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                                <button class="btn btn-outline-primary mt-3">
+                                    <i class="fas fa-plus"></i> Enroll New Factor
+                                </button>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <h5>Password</h5>
+                            <div class="stat-card">
+                                <div>Last changed: <strong>Apr 30, 2025, 9:45 AM</strong></div>
+                                <div class="mt-2">Password expiry: <strong>Jul 30, 2025</strong></div>
+                                <div class="mt-2">Password strength: <strong>Strong</strong></div>
+                                <button class="btn btn-outline-primary mt-3">
+                                    <i class="fas fa-key"></i> Reset Password
+                                </button>
+                            </div>
+                            <h5 class="mt-4">Security Questions</h5>
+                            <div class="stat-card">
+                                <div>Status: <strong>Set (3/3)</strong></div>
+                                <div class="mt-2">Last updated: <strong>Mar 12, 2024</strong></div>
+                                <button class="btn btn-outline-primary mt-3">
+                                    <i class="fas fa-edit"></i> Update Questions
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Apps Tab -->
+                <div id="apps" class="tab-content">
+                    <div class="table-responsive">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Application</th>
+                                    <th>Status</th>
+                                    <th>Last Access</th>
+                                    <th>Access</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>Salesforce</td>
+                                    <td><span class="badge bg-success">Active</span></td>
+                                    <td>Apr 30, 2025, 3:45 PM</td>
+                                    <td>
+                                        <button class="btn btn-sm btn-outline-danger">
+                                            <i class="fas fa-times-circle"></i> Revoke
+                                        </button>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>Google Workspace</td>
+                                    <td><span class="badge bg-success">Active</span></td>
+                                    <td>May 1, 2025, 10:12 AM</td>
+                                    <td>
+                                        <button class="btn btn-sm btn-outline-danger">
+                                            <i class="fas fa-times-circle"></i> Revoke
+                                        </button>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>Slack</td>
+                                    <td><span class="badge bg-success">Active</span></td>
+                                    <td>May 1, 2025, 11:05 AM</td>
+                                    <td>
+                                        <button class="btn btn-sm btn-outline-danger">
+                                            <i class="fas fa-times-circle"></i> Revoke
+                                        </button>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>Jira</td>
+                                    <td><span class="badge bg-warning">Inactive</span></td>
+                                    <td>Mar 17, 2025, 9:30 AM</td>
+                                    <td>
+                                        <button class="btn btn-sm btn-outline-danger">
+                                            <i class="fas fa-times-circle"></i> Revoke
+                                        </button>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <!-- Sessions Tab -->
+                <div id="sessions" class="tab-content">
+                    <div class="table-responsive">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Device</th>
+                                    <th>Location</th>
+                                    <th>IP Address</th>
+                                    <th>Started</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>Chrome on Windows 10</td>
+                                    <td>New York, USA</td>
+                                    <td>192.168.1.45</td>
+                                    <td>May 1, 2025, 9:23 AM</td>
+                                    <td>
+                                        <button class="btn btn-sm btn-outline-danger">
+                                            <i class="fas fa-trash"></i> End
+                                        </button>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>Safari on iPhone</td>
+                                    <td>New York, USA</td>
+                                    <td>192.168.1.102</td>
+                                    <td>Apr 30, 2025, 4:15 PM</td>
+                                    <td>
+                                        <button class="btn btn-sm btn-outline-danger">
+                                            <i class="fas fa-trash"></i> End
+                                        </button>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                        <button class="btn btn-outline-danger mt-3">
+                            <i class="fas fa-trash"></i> End All Sessions
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- JavaScript from CDN -->
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js" integrity="sha256-/JqT3SQfawRcv/BIHPThkBvs0OEvtFFmqPF/lYI/Cxo=" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL" crossorigin="anonymous"></script>
+    <script nonce="{{ nonce }}">
+        // Toggle sidebar on mobile
+        document.querySelector('.sidebar-toggle').addEventListener('click', function() {
+            document.querySelector('.sidebar').classList.toggle('show');
+        });
+        
+        // Tab functionality
+        document.querySelectorAll('.tab-button').forEach(button => {
+            button.addEventListener('click', () => {
+                // Remove active class from all buttons and contents
+                document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
+                document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+                
+                // Add active class to clicked button
+                button.classList.add('active');
+                
+                // Show corresponding content
+                const tabId = button.dataset.tab;
+                document.getElementById(tabId).classList.add('active');
+            });
+        });
+    </script>
+</body>
+</html>
