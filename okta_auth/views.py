@@ -235,6 +235,11 @@ def oauth_callback(request: HttpRequest) -> HttpResponse:
         signed_device_token = signer.sign(device_token)
         request.session['device_token'] = signed_device_token
         
+        # Get and store average login time statistics
+        from login_tracking.metrics import get_cached_avg_login_time
+        avg_login_data = get_cached_avg_login_time()
+        request.session['avg_login_time'] = avg_login_data
+        
         # Securely store tokens - encrypt with user-specific key
         # This isolates tokens per user and session
         if access_token:
