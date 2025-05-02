@@ -1,42 +1,113 @@
 /* Dashboard Styles */
 :root {
-    --green-1: #00ED64;
-    --green-2: #01C853;
-    --blue-1: #0D6EFD;
-    --blue-2: #0953C7;
-    --dark-1: #001E2B;
-    --dark-2: #023430;
-    --gray-1: #F9FBFA;
-    --gray-2: #E8EDEB;
-    --gray-3: #C1C7C6;
-    --gray-4: #889392;
-    --red-1: #EF6C00;
-    --red-2: #DB3030;
-    --yellow-1: #FFCA28;
-    --purple-1: #6E31E0;
-    --mongodb-green: #00ED64;
-    --mongodb-dark: #001E2B;
+    /* Primary Colors */
+    --green-primary: #00ED64;
+    --green-secondary: #01C853;
+    --blue-primary: #0D6EFD;
+    --blue-secondary: #0953C7;
+    
+    /* Neutral Colors */
+    --dark-primary: #001E2B;
+    --dark-secondary: #023430;
+    --gray-lightest: #F9FBFA;
+    --gray-light: #E8EDEB;
+    --gray-medium: #C1C7C6;
+    --gray-dark: #889392;
+    
+    /* Accent Colors */
+    --orange: #EF6C00;
+    --red: #DB3030;
+    --yellow: #FFCA28;
+    --purple: #6E31E0;
+    
+    /* Legacy variables for backward compatibility */
+    --green-1: var(--green-primary);
+    --green-2: var(--green-secondary);
+    --blue-1: var(--blue-primary);
+    --blue-2: var(--blue-secondary);
+    --dark-1: var(--dark-primary);
+    --dark-2: var(--dark-secondary);
+    --gray-1: var(--gray-lightest);
+    --gray-2: var(--gray-light);
+    --gray-3: var(--gray-medium);
+    --gray-4: var(--gray-dark);
+    --red-1: var(--orange);
+    --red-2: var(--red);
+    --yellow-1: var(--yellow);
+    --purple-1: var(--purple);
+    --mongodb-green: var(--green-primary);
+    --mongodb-dark: var(--dark-primary);
+    
+    /* Spacing Variables */
+    --space-xs: 0.25rem;  /* 4px */
+    --space-sm: 0.5rem;   /* 8px */
+    --space-md: 1rem;     /* 16px */
+    --space-lg: 1.5rem;   /* 24px */
+    --space-xl: 2rem;     /* 32px */
+    
+    /* Component Sizing */
+    --border-radius-sm: 6px;
+    --border-radius-md: 8px;
+    --border-radius-lg: 12px;
+    --border-radius-full: 100px;
+    
+    /* Shadows */
+    --shadow-sm: 0 2px 10px rgba(0, 0, 0, 0.05);
+    --shadow-md: 0 5px 15px rgba(0, 0, 0, 0.1);
+    --shadow-lg: 0 15px 30px rgba(0, 0, 0, 0.15);
+    
+    /* Transitions */
+    --transition-speed: 0.3s;
+    --transition-timing: ease;
 }
 
 body {
     font-family: 'Euclid Circular A', sans-serif;
-    background-color: var(--gray-1);
-    color: var(--dark-1);
+    background-color: var(--gray-lightest);
+    color: var(--dark-primary);
     line-height: 1.6;
+}
+
+/* Typography */
+h1, h2, h3, h4, h5, h6 {
+    font-weight: 600;
+    color: var(--dark-primary);
+    margin-top: 0;
+}
+
+h1 {
+    font-size: 1.5rem;
+}
+
+h2 {
+    font-size: 1.3rem;
+}
+
+h3 {
+    font-size: 1.1rem;
+}
+
+h4 {
+    font-size: 1rem;
+}
+
+p {
+    margin-top: 0;
+    margin-bottom: var(--space-md);
 }
 
 /* Utility classes */
 .mr-1 {
-    margin-right: 0.25rem !important;
+    margin-right: var(--space-xs) !important;
 }
 
 .ml-2 {
-    margin-left: 0.5rem !important;
+    margin-left: var(--space-sm) !important;
 }
 
 /* Additional utility classes */
 .mb-2 {
-    margin-bottom: 0.5rem !important;
+    margin-bottom: var(--space-sm) !important;
 }
 
 .mt-2 {
@@ -2282,3 +2353,40 @@ footer {
 .bg-red-2 { background-color: var(--red-2); }
 .bg-blue-1 { background-color: var(--blue-1); }
 .bg-purple-1 { background-color: var(--purple-1); }
+
+/* Map container styles */
+.map-container {
+    height: 300px;
+    width: 100%;
+    position: relative;
+    overflow: hidden;
+    border-radius: 8px;
+    background-color: var(--gray-1);
+}
+
+/* Make the jsVectorMap responsive */
+.jvm-container {
+    width: 100% !important;
+    height: 100% !important;
+    position: relative;
+    overflow: hidden;
+}
+
+/* Improve map country visual */
+.jvm-region {
+    transition: fill 0.2s ease;
+}
+
+/* Responsive adjustments for map */
+@media (max-width: 767px) {
+    .map-container {
+        height: 200px;
+        margin-bottom: 15px;
+    }
+}
+
+@media (max-width: 480px) {
+    .map-container {
+        height: 180px;
+    }
+}

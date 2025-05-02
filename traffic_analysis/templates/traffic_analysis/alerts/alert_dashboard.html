@@ -530,7 +530,7 @@
         const alertData = {
             labels: ['Critical', 'High', 'Medium', 'Low'],
             datasets: [{
-                data: [{{ critical_alerts }}, {{ high_alerts }}, {{ medium_alerts }}, {{ low_alerts }}],
+                data: [Number('{{ critical_alerts }}'), Number('{{ high_alerts }}'), Number('{{ medium_alerts }}'), Number('{{ low_alerts }}')],
                 backgroundColor: [
                     '#DB3030',
                     '#EF6C00',
