@@ -175,6 +175,36 @@
             </div>
         </div>
         
+        <!-- Login Time Stats Row -->
+        <div class="row mt-3">
+            <div class="col-md-6">
+                <div class="stat-card">
+                    <div class="stat-header">
+                        <div class="stat-icon icon-warning">
+                            <i class="fas fa-clock"></i>
+                        </div>
+                        <div>
+                            <div class="stat-title">AVG LOGIN TIME</div>
+                            <div class="stat-value" id="avg-login-time">{{ request.session.avg_login_time.avg_ms|default:"..." }} ms</div>
+                        </div>
+                    </div>
+                    <div class="stat-footer">
+                        <div id="login-time-trend" class="stat-trend">
+                            <i id="login-time-trend-icon" class="fas fa-minus mr-1"></i> <span id="login-time-trend-value">--</span>
+                        </div>
+                        <div class="stat-period" id="login-time-updated">
+                            Last updated: {% if request.session.avg_login_time.timestamp %}{{ request.session.avg_login_time.timestamp|date:"H:i" }}{% else %}--:--{% endif %}
+                        </div>
+                        <div class="stat-refresh">
+                            <button id="refresh-login-time" class="btn btn-sm btn-outline-info">
+                                <i class="fas fa-sync-alt"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
         <!-- Charts Row -->
         <div class="row mt-4">
             <div class="col-lg-8">
@@ -566,6 +596,68 @@
                 // Close dropdown
                 document.getElementById('timeFilterDropdown').classList.remove('show');
             });
+        });
+        
+        // Average Login Time Refresh functionality
+        function fetchAvgLoginTime() {
+            fetch('/api/login-timing/avg/cached/')
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Network response was not ok');
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    // Update the average login time display
+                    document.getElementById('avg-login-time').textContent = data.avg_login_ms.toFixed(2) + ' ms';
+                    
+                    // Format and display the last updated time
+                    const lastUpdateDate = new Date(data.last_updated * 1000);
+                    const hours = String(lastUpdateDate.getHours()).padStart(2, '0');
+                    const minutes = String(lastUpdateDate.getMinutes()).padStart(2, '0');
+                    document.getElementById('login-time-updated').textContent = 
+                        'Last updated: ' + hours + ':' + minutes;
+
+                    // Update the trend value and icon
+                    const trendValue = data.trend_value.toFixed(1) + '%';
+                    const trendIcon = document.getElementById('login-time-trend-icon');
+                    const trendElement = document.getElementById('login-time-trend-value');
+                    trendElement.textContent = trendValue;
+
+                    if (data.trend_value > 0) {
+                        trendIcon.className = 'fas fa-arrow-up mr-1';
+                        trendElement.className = 'trend-up';
+                    } else if (data.trend_value < 0) {
+                        trendIcon.className = 'fas fa-arrow-down mr-1';
+                        trendElement.className = 'trend-down';
+                    } else {
+                        trendIcon.className = 'fas fa-minus mr-1';
+                        trendElement.className = 'trend-neutral';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching average login time:', error);
+                });
+        }
+
+        // Set up automatic refresh every 10 minutes (600000 ms)
+        setInterval(fetchAvgLoginTime, 600000);
+
+        // Initial fetch after page load
+        setTimeout(fetchAvgLoginTime, 1000);
+
+        // Manual refresh button event listener
+        document.getElementById('refresh-login-time').addEventListener('click', function() {
+            // Add spinning animation to refresh icon
+            this.querySelector('i').classList.add('fa-spin');
+            
+            // Fetch new data
+            fetchAvgLoginTime();
+            
+            // Stop spinning after 1 second
+            setTimeout(() => {
+                this.querySelector('i').classList.remove('fa-spin');
+            }, 1000);
         });
     </script>
 </body>

@@ -705,55 +705,24 @@ class OktaOAuthClient:
                 logger.warning(f"Accept header variation attempt failed: {e}")
                 
             # If all userinfo endpoint methods failed, log diagnostics
-            logger.error("All userinfo endpoint methods failed")
+            logger.warning("All userinfo endpoint methods failed - falling back to ID token")
             
-            # Check server configuration issues
-            logger.debug(f"Checking userinfo endpoint configuration: {self.userinfo_endpoint}")
+            # Log attempt details for diagnostic purposes
+            for attempt_type, error in attempts:
+                logger.debug(f"{attempt_type} attempt error: {error}")
             
-            # Check if ID token is available as fallback
+            # Check if ID token is available as fallback - THIS IS THE MAIN CHANGE
             if id_token:
-                logger.info("Falling back to ID token parsing for user info")
+                logger.info("Using ID token as fallback for user info - this is working as designed")
                 try:
                     return self._parse_id_token(id_token)
                 except Exception as e:
-                    attempts.append(("ID-Token-Parse", str(e)))
-                    logger.error(f"ID token fallback failed: {e}")
-            
-            # All methods failed, generate detailed diagnostic info
-            logger.error("All user info retrieval methods failed")
-            
-            # Log attempt details
-            for attempt_type, error in attempts:
-                logger.error(f"{attempt_type} attempt error: {error}")
-            
-            # Log response content for failed attempts
-            for resp_type, resp in responses:
-                content = resp.text[:500] if resp.text else "Empty response"
-                logger.error(f"{resp_type} response ({resp.status_code}): {content}")
-                
-                # Log response headers for debugging
-                headers = dict(resp.headers)
-                safe_headers = {k: v for k, v in headers.items() 
-                               if k.lower() not in ('authorization', 'set-cookie')}
-                logger.error(f"{resp_type} response headers: {json.dumps(safe_headers)}")
-                
-                # Try to parse error messages if in JSON format
-                try:
-                    if resp.text:
-                        error_json = resp.json()
-                        logger.error(f"{resp_type} error details: {json.dumps(error_json)}")
-                except Exception:
-                    pass
-            
-            # Get the most informative response to use in the error
-            primary_error_resp = next((r for t, r in responses if t == "DPoP"), 
-                                      next((r for t, r in responses), None))
-            
-            if primary_error_resp:
-                error_content = primary_error_resp.text[:100] if primary_error_resp.text else "Empty response"
-                raise Exception(f"Failed to get user info: {primary_error_resp.status_code}, error: {error_content}")
+                    logger.error(f"ID token fallback also failed: {e}")
+                    # Now we truly have no way to get user info, so raise an exception
+                    raise
             else:
-                raise Exception(f"Failed to make user info request: {attempts[0][1] if attempts else 'Unknown error'}")
+                # Only raise an exception if we don't have an id_token fallback
+                raise Exception("Failed to get user information and no ID token available")
                 
         except Exception as e:
             logger.error(f"Error retrieving user info: {e}")

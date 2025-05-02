@@ -12,6 +12,7 @@ def register_scheduled_tasks():
     
     # Delete any existing schedules with the same name to avoid duplicates
     Schedule.objects.filter(name="fetch_okta_logs").delete()
+    Schedule.objects.filter(name="update_login_time_cache").delete()
     
     # Schedule the task to run every minute
     schedule(
@@ -22,7 +23,17 @@ def register_scheduled_tasks():
         repeats=-1,                             # Repeat indefinitely
     )
     
+    # Schedule the login time cache update task to run every 10 minutes
+    schedule(
+        'django.core.management.call_command',  # Function to call
+        'update_login_time_cache',              # Command name
+        name='update_login_time_cache',         # Schedule name
+        minutes=10,                             # Run every 10 minutes
+        repeats=-1,                             # Repeat indefinitely
+    )
+    
     logger.info("Successfully registered task to fetch Okta logs every minute")
+    logger.info("Successfully registered task to update login time cache every 10 minutes")
 
 def setup_scheduled_tasks(sender, **kwargs):
     """

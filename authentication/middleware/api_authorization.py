@@ -45,6 +45,7 @@ class APIAuthorizationMiddleware(MiddlewareMixin):
             '/api/health/',
             '/api/public/',
             '/api/token/refresh/',
+            '/api/login-timing/avg/cached/',  # Added this endpoint to exemptions
         ]
         
     def process_request(self, request):
