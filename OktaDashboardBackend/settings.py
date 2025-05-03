@@ -10,9 +10,6 @@ from mongoengine import connect
 # Base directory
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# Path to the log file used for login time tracking
-LOGIN_TIME_LOG_PATH = BASE_DIR / 'logs/django.log'
-
 # Load environment variables
 env = environ.Env()
 environ.Env.read_env(os.path.join(BASE_DIR, ".env"))
@@ -40,10 +37,13 @@ OKTA_CLIENT_ID = env("OKTA_CLIENT_ID", default=None)
 OKTA_CLIENT_SECRET = env("OKTA_CLIENT_SECRET", default=None)
 
 # Okta Settings
-OKTA_AUTHORIZATION_ENDPOINT = f"{OKTA_ORG_URL}/oauth2/v1/authorize" if OKTA_ORG_URL else None
-OKTA_TOKEN_ENDPOINT = env("OKTA_TOKEN_ENDPOINT", default=f"{OKTA_ORG_URL}/oauth2/v1/token" if OKTA_ORG_URL else None)
+OKTA_AUTHORIZATION_ENDPOINT = env("OKTA_AUTHORIZATION_ENDPOINT", 
+                               default=f"{OKTA_ORG_URL}/oauth2/v1/authorize" if OKTA_ORG_URL else None)
+OKTA_TOKEN_ENDPOINT = env("OKTA_TOKEN_ENDPOINT", 
+                         default=f"{OKTA_ORG_URL}/oauth2/v1/token" if OKTA_ORG_URL else None)
 OKTA_REDIRECT_URI = env("OKTA_REDIRECT_URI", default="http://127.0.0.1:8000/okta/callback")
-OKTA_USER_INFO_ENDPOINT = f"{OKTA_ORG_URL}/oauth2/v1/userinfo" if OKTA_ORG_URL else None
+OKTA_USER_INFO_ENDPOINT = env("OKTA_USER_INFO_ENDPOINT", 
+                             default=f"{OKTA_ORG_URL}/oauth2/v1/userinfo" if OKTA_ORG_URL else None)
 OKTA_SCOPES = env("OKTA_SCOPES", default="openid profile email okta.users.read okta.logs.read okta.apps.read")
 
 # Zero Trust Authentication Settings
@@ -90,7 +90,6 @@ INSTALLED_APPS = [
 	# Custom apps
 	'rest_framework',
 	'authentication',  # Add the new authentication app
-	'okta_auth.apps.OktaAuthConfig',  # Add the Okta authentication app
 	
 	# Performance optimizations
 	'django_prometheus',
@@ -193,6 +192,9 @@ MIDDLEWARE = [
 	
 	# Metrics middleware last
 	"django_prometheus.middleware.PrometheusAfterMiddleware",
+	'django.contrib.auth.middleware.AuthenticationMiddleware',
+	'login_tracking.middleware.LoginTimingMiddleware',
+	'django_prometheus.middleware.PrometheusAfterMiddleware',
 ]
 
 # Root URL configuration
@@ -217,32 +219,26 @@ MONGODB_SETTINGS = {
 	"waitQueueTimeoutMS": env.int("MONGO_WAIT_QUEUE_TIMEOUT_MS", default=5000),
 }
 
-# Establish MongoDB connection - now using the URL if available
-MONGODB_URL = env("MONGODB_URL", default=None)
-if not MONGODB_URL:
-    # Construct MongoDB URL from individual settings
-    auth_part = f"{MONGODB_SETTINGS['username']}:{MONGODB_SETTINGS['password']}@" if MONGODB_SETTINGS['username'] and MONGODB_SETTINGS['password'] else ""
-    MONGODB_URL = f"mongodb://{auth_part}{MONGODB_SETTINGS['host']}:{MONGODB_SETTINGS['port']}/{MONGODB_SETTINGS['db']}"
-
-# Try to connect but don't block app startup if MongoDB is not available
+# Establish MongoDB connection
 try:
     connect(
-        host=MONGODB_URL,
-        alias='default',
-        serverSelectionTimeoutMS=MONGODB_SETTINGS.get("serverSelectionTimeoutMS"),
-        connectTimeoutMS=MONGODB_SETTINGS.get("connectTimeoutMS"),
-        socketTimeoutMS=MONGODB_SETTINGS.get("socketTimeoutMS"),
+        db=MONGODB_SETTINGS["db"],
+        host=MONGODB_SETTINGS["host"],
+        port=MONGODB_SETTINGS["port"],
+        username=MONGODB_SETTINGS["username"],
+        password=MONGODB_SETTINGS["password"],
+        authentication_source=MONGODB_SETTINGS.get("authentication_source"),
         maxPoolSize=MONGODB_SETTINGS.get("maxPoolSize"),
         minPoolSize=MONGODB_SETTINGS.get("minPoolSize"),
+        connectTimeoutMS=MONGODB_SETTINGS.get("connectTimeoutMS"),
+        socketTimeoutMS=MONGODB_SETTINGS.get("socketTimeoutMS"),
+        serverSelectionTimeoutMS=MONGODB_SETTINGS.get("serverSelectionTimeoutMS"),
+        waitQueueTimeoutMS=MONGODB_SETTINGS.get("waitQueueTimeoutMS"),
     )
-    import logging
-    logger = logging.getLogger('django')
-    logger.info("Successfully connected to MongoDB")
 except Exception as e:
     import logging
     logger = logging.getLogger('django')
     logger.warning(f"MongoDB connection failed: {e}")
-    logger.info("Will retry MongoDB connection on first database access")
 
 # Database settings - optimized for production
 DATABASES = {
@@ -303,10 +299,7 @@ USE_TZ = True
 
 # Static and media files - optimized
 STATIC_URL = "/static/"
-STATICFILES_DIRS = [
-    BASE_DIR / "traffic_analysis/static",  # Updated to use new app path
-    BASE_DIR / "okta_auth/static",  # Add the okta_auth static directory
-]
+STATICFILES_DIRS = [BASE_DIR / "traffic_analysis/static"]  # Updated to use new app path
 STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 WHITENOISE_AUTOREFRESH = not DEBUG  # Only refresh in development
 WHITENOISE_USE_FINDERS = DEBUG  # Only in development

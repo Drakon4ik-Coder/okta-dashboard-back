@@ -597,62 +597,68 @@ try:
         # Store logs in MongoDB (if not already done)
         print("\n========== TESTING MONGODB STORAGE ==========")
         
-        # Import the improved DatabaseService with reset capability
+        # Connect directly to MongoDB on localhost instead of using Django connection
         try:
-            from OktaDashboardBackend.services.database import DatabaseService
+            # Import the required MongoDB libraries
+            import mongoengine
+            from pymongo import MongoClient
             
-            # Reset MongoDB connections properly using our new method
-            print("Resetting MongoDB connections...")
-            DatabaseService.reset()
+            # Disconnect any existing connections first
+            mongoengine.disconnect_all()
+            print("Disconnected existing MongoDB connections")
             
-            # Initialize MongoDB service with fresh connection
-            db_service = DatabaseService()
+            # Direct MongoDB connection parameters
+            mongo_host = "mongodb://localhost:27017/"
+            db_name = "okta_dashboard"
+            collection_name = "okta_logs"
             
-            if db_service.is_connected():
-                print("✓ Successfully connected to MongoDB")
-                
-                # Get collection for logs
-                logs_collection = db_service.get_collection('okta_dashboard', 'okta_logs')
-                
-                # Create indexes if they don't exist
-                try:
-                    logs_collection.create_index("uuid", unique=True)
-                    logs_collection.create_index("published")
-                    logs_collection.create_index("eventType")
-                    logs_collection.create_index([("actor.id", 1), ("published", -1)])
-                    logs_collection.create_index([("target.id", 1), ("published", -1)])
-                    print("✓ Successfully created MongoDB indexes for logs collection")
-                except Exception as e:
-                    print(f"Note about indexes: {str(e)}")
-                
-                # Process the logs for storage
-                if 'logs_data' in locals() and logs_data:
-                    # Add import timestamp
-                    for log in logs_data:
-                        log['_imported_at'] = datetime.utcnow().isoformat()
-                        
-                        # Add MongoDB-specific fields for efficient querying
-                        if 'published' in log and isinstance(log['published'], str):
-                            try:
-                                # Store the published date as ISODate for MongoDB
-                                published_date = datetime.fromisoformat(log['published'].replace('Z', '+00:00'))
-                                log['_published_date'] = published_date.isoformat()
-                            except Exception as date_error:
-                                print(f"Error parsing published date: {date_error}")
+            # Create direct connection to MongoDB
+            client = MongoClient(mongo_host)
+            logs_collection = client[db_name][collection_name]
+            print(f"✓ Successfully connected to MongoDB at {mongo_host}")
+            
+            # Create indexes if they don't exist
+            try:
+                logs_collection.create_index("uuid", unique=True)
+                logs_collection.create_index("published")
+                logs_collection.create_index("eventType")
+                logs_collection.create_index([("actor.id", 1), ("published", -1)])
+                logs_collection.create_index([("target.id", 1), ("published", -1)])
+                print("✓ Successfully created MongoDB indexes for logs collection")
+            except Exception as e:
+                print(f"Note about indexes: {str(e)}")
+            
+            # Process the logs for storage
+            if 'logs_data' in locals() and logs_data:
+                # Add import timestamp
+                for log in logs_data:
+                    log['_imported_at'] = datetime.utcnow().isoformat()
                     
-                    try:
-                        # Use bulk insert with unordered option to continue on duplicate key errors
-                        result = logs_collection.insert_many(logs_data, ordered=False)
-                        print(f"✓ Successfully stored {len(result.inserted_ids)} logs in MongoDB")
-                    except Exception as e:
-                        if "E11000 duplicate key error" in str(e):
-                            print("Some logs were already in MongoDB (duplicate keys)")
-                        else:
-                            print(f"Error during MongoDB insertion: {str(e)}")
-                else:
-                    print("No logs data available to store in MongoDB")
+                    # Add MongoDB-specific fields for efficient querying
+                    if 'published' in log and isinstance(log['published'], str):
+                        try:
+                            # Store the published date as ISODate for MongoDB
+                            published_date = datetime.fromisoformat(log['published'].replace('Z', '+00:00'))
+                            log['_published_date'] = published_date.isoformat()
+                        except Exception as date_error:
+                            print(f"Error parsing published date: {date_error}")
+                
+                try:
+                    # Use bulk insert with unordered option to continue on duplicate key errors
+                    result = logs_collection.insert_many(logs_data, ordered=False)
+                    print(f"✓ Successfully stored {len(result.inserted_ids)} logs in MongoDB")
+                except Exception as e:
+                    if "E11000 duplicate key error" in str(e):
+                        print("Some logs were already in MongoDB (duplicate keys)")
+                    else:
+                        print(f"Error during MongoDB insertion: {str(e)}")
             else:
-                print("❌ Failed to connect to MongoDB")
+                print("No logs data available to store in MongoDB")
+            
+            # Don't forget to close the connection when done
+            client.close()
+            print("MongoDB connection closed")
+                
         except Exception as e:
             print(f"Error with MongoDB integration: {str(e)}")
 

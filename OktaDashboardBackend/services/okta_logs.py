@@ -7,11 +7,14 @@ import jwt
 import json
 import hashlib
 import os
+import re
+from urllib.parse import urlparse
 from typing import Dict, List, Optional, Any
 from datetime import datetime, timedelta
 from django.conf import settings
 from django.core.cache import cache
 from cryptography.hazmat.primitives import serialization
+from pymongo import MongoClient
 
 from OktaDashboardBackend.services.okta_oauth import OktaOAuthClient
 from OktaDashboardBackend.services.database import DatabaseService
@@ -33,48 +36,40 @@ class OktaLogsClient:
     which has been confirmed to be working (/api/v1/logs endpoint).
     """
     
-    def __init__(self):
-        """Initialize the Logs API client"""
+    def __init__(self, use_direct_mongodb=False):
+        """
+        Initialize the Logs API client
+        
+        Args:
+            use_direct_mongodb: If True, use direct MongoDB connection instead of DatabaseService
+        """
         self.oauth_client = OktaOAuthClient()
-        
-        # Prioritize environment variables over settings
-        self.org_url = os.environ.get('OKTA_ORG_URL', settings.OKTA_ORG_URL)
+        self.org_url = settings.OKTA_ORG_URL
         self.logs_endpoint = f"{self.org_url}/api/v1/logs"
-        
-        # Log configuration for debugging
-        logger.debug(f"OktaLogsClient using org URL: {self.org_url}")
         
         # Token cache key for this specific client
         self.token_cache_key = "okta_logs_token"
         
-        # MongoDB settings - use the improved connection handling
-        self.db_service = None
-        self._initialize_mongodb_connection()
+        # DPoP nonce cache key
+        self.nonce_cache_key = "okta_logs_dpop_nonce"
+        
+        # MongoDB settings
+        self.use_direct_mongodb = use_direct_mongodb
         self.db_name = settings.MONGODB_SETTINGS.get('db', 'okta_dashboard')
         self.logs_collection_name = 'okta_logs'
+        
+        if not use_direct_mongodb:
+            # Use DatabaseService
+            self.db_service = DatabaseService()
+        else:
+            # Direct MongoDB connection parameters
+            self.mongo_host = settings.MONGODB_SETTINGS.get('host', 'mongodb://localhost:27017/')
+            self.mongo_client = None
         
         # Session for connection pooling and performance optimization
         self.session = self._create_optimized_session()
         
         logger.info(f"OktaLogsClient initialized with logs endpoint: {self.logs_endpoint}")
-    
-    def _initialize_mongodb_connection(self):
-        """Initialize MongoDB connection with improved error handling"""
-        try:
-            # Reset any existing connections first
-            DatabaseService.reset()
-            
-            # Create new connection
-            self.db_service = DatabaseService()
-            
-            # Test connection
-            if self.db_service.is_connected():
-                logger.info("MongoDB connection established successfully for OktaLogsClient")
-            else:
-                logger.warning("MongoDB connection test failed for OktaLogsClient")
-        except Exception as e:
-            logger.error(f"Error initializing MongoDB connection: {str(e)}")
-            # We'll try to reconnect when needed
     
     def _create_optimized_session(self) -> requests.Session:
         """Create and configure an optimized requests session with connection pooling"""
@@ -137,22 +132,118 @@ class OktaLogsClient:
             timeout=expires_in - 60 if expires_in > 60 else expires_in
         )
         
+        # Also check for DPoP nonce in response headers and cache it
+        dpop_nonce = token_data.get('_dpop_nonce')
+        if dpop_nonce:
+            cache.set(self.nonce_cache_key, dpop_nonce, timeout=3600)
+            logger.debug(f"Cached DPoP nonce: {dpop_nonce}")
+        
         return access_token
     
-    def _create_dpop_proof_with_token_binding(self, method: str, url: str, access_token: str, nonce: Optional[str] = None) -> str:
+    def _normalize_url_for_dpop(self, method: str, url: str) -> str:
         """
-        Create a DPoP proof JWT for API requests with token binding
+        Normalize URL for DPoP proof as per Okta requirements
+        
+        Args:
+            method: HTTP method
+            url: The original URL
+            
+        Returns:
+            Normalized URL for DPoP proof
+        """
+        parsed_url = urlparse(url)
+        
+        # For Okta System Log API, use exactly '/api/v1/logs' as specified in documentation
+        if '/api/v1/logs' in url:
+            return "/api/v1/logs"
+        elif 'oauth2/v1/token' in url:
+            # For token endpoint, use full URL
+            return url
+        else:
+            # For other endpoints, use the full URL
+            return url
+            
+    def _get_dpop_nonce(self, url: str) -> Optional[str]:
+        """
+        Get a DPoP nonce for a specific URL
+        
+        Args:
+            url: The target URL
+            
+        Returns:
+            DPoP nonce if available, None otherwise
+        """
+        # Try to get from cache first
+        cached_nonce = cache.get(self.nonce_cache_key)
+        if cached_nonce:
+            logger.debug(f"Using cached DPoP nonce: {cached_nonce}")
+            return cached_nonce
+            
+        # If not in cache, try to get a new one with a minimal request
+        try:
+            # Create a DPoP proof without nonce
+            token_url = settings.OKTA_TOKEN_ENDPOINT
+            initial_proof = self._create_dpop_proof(
+                "POST", 
+                token_url, 
+                None,  # No access token for this probe request
+                None   # No nonce yet
+            )
+            
+            # Create minimal headers
+            minimal_headers = {
+                "Accept": "application/json",
+                "DPoP": initial_proof
+            }
+            
+            # Make a HEAD request to probe for nonce
+            response = self.session.head(
+                url, 
+                headers=minimal_headers,
+                timeout=10
+            )
+            
+            # Check for DPoP-Nonce header
+            if "DPoP-Nonce" in response.headers:
+                nonce = response.headers.get("DPoP-Nonce")
+                logger.debug(f"Got DPoP nonce from response: {nonce}")
+                
+                # Cache the nonce
+                cache.set(self.nonce_cache_key, nonce, timeout=3600)
+                return nonce
+            
+            # Check WWW-Authenticate header for nonce
+            www_auth = response.headers.get("WWW-Authenticate", "")
+            if "nonce=" in www_auth:
+                nonce_match = re.search(r'nonce="([^"]+)"', www_auth)
+                if nonce_match:
+                    nonce = nonce_match.group(1)
+                    logger.debug(f"Extracted nonce from WWW-Authenticate: {nonce}")
+                    
+                    # Cache the nonce
+                    cache.set(self.nonce_cache_key, nonce, timeout=3600)
+                    return nonce
+            
+            return None
+            
+        except Exception as e:
+            logger.warning(f"Error getting DPoP nonce: {str(e)}")
+            return None
+    
+    def _create_dpop_proof(self, method: str, url: str, access_token: Optional[str] = None, nonce: Optional[str] = None) -> str:
+        """
+        Create a DPoP proof JWT for API requests, with optional token binding
         
         Args:
             method: HTTP method
             url: Target URL
-            access_token: The access token to bind to
+            access_token: Optional access token to bind to
             nonce: Optional nonce from server
             
         Returns:
             DPoP proof JWT string
         """
-        # Load the private key used for DPoP
+        # Load the private key and JWK from oauth client
         private_key = self.oauth_client.private_key
         jwk = self.oauth_client.jwk
         
@@ -163,25 +254,31 @@ class OktaLogsClient:
             encryption_algorithm=serialization.NoEncryption()
         )
         
-        # Create hash of the access token for the 'ath' claim
-        access_token_hash = hashlib.sha256(access_token.encode()).digest()
-        # Base64url encode the hash
-        ath = base64.urlsafe_b64encode(access_token_hash).decode('utf-8').rstrip('=')
+        # Normalize the URL for proper DPoP usage
+        normalized_url = self._normalize_url_for_dpop(method, url)
         
         # Create DPoP proof JWT
         now = int(time.time())
-        proof_payload = {
+        proof = {
             "jti": str(uuid.uuid4()),
             "htm": method,
-            "htu": url,
+            "htu": normalized_url,
             "iat": now,
             "exp": now + 60,  # Valid for 1 minute
-            "ath": ath  # Add token binding
         }
         
-        # Add nonce if provided
+        # Add token binding with 'ath' claim if access token is provided
+        if access_token:
+            # Create hash of the access token for the 'ath' claim
+            access_token_hash = hashlib.sha256(access_token.encode()).digest()
+            # Base64url encode the hash
+            ath = base64.urlsafe_b64encode(access_token_hash).decode('utf-8').rstrip('=')
+            proof["ath"] = ath
+        
+        # Add nonce if provided - CRITICAL for Okta API
         if nonce:
-            proof_payload["nonce"] = nonce
+            proof["nonce"] = nonce
+            logger.debug(f"Including nonce in DPoP proof: {nonce}")
         
         # Create the header with the JWK
         header = {
@@ -192,13 +289,37 @@ class OktaLogsClient:
         
         # Sign the JWT
         dpop_proof = jwt.encode(
-            payload=proof_payload,
+            payload=proof,
             key=private_key_pem,
             algorithm="RS256",
             headers=header
         )
         
         return dpop_proof
+        
+    def _get_mongodb_collection(self):
+        """
+        Get MongoDB collection for logs, either via DatabaseService or direct connection
+        
+        Returns:
+            MongoDB collection
+        """
+        if not self.use_direct_mongodb:
+            # Use DatabaseService
+            return self.db_service.get_collection(self.db_name, self.logs_collection_name)
+        else:
+            # Direct MongoDB connection
+            if not self.mongo_client:
+                import mongoengine
+                
+                # Disconnect any existing connections first
+                mongoengine.disconnect_all()
+                
+                # Create direct connection
+                self.mongo_client = MongoClient(self.mongo_host)
+            
+            # Return collection
+            return self.mongo_client[self.db_name][self.logs_collection_name]
     
     def _store_logs_in_mongodb(self, logs_data: List[Dict]) -> bool:
         """
@@ -216,7 +337,7 @@ class OktaLogsClient:
             
         try:
             # Get MongoDB collection
-            logs_collection = self.db_service.get_collection(self.db_name, self.logs_collection_name)
+            logs_collection = self._get_mongodb_collection()
             
             # Ensure indexes exist for efficient querying
             # We do this in a try-except block to avoid errors if indexes already exist
@@ -262,8 +383,7 @@ class OktaLogsClient:
     
     def get_logs(self, params: Optional[Dict] = None, retry_on_error: bool = True, store_in_mongodb: bool = True) -> List[Dict]:
         """
-        Get logs from the Okta System Log API and optionally store them in MongoDB.
-        Always uses client credentials flow (machine-to-machine) regardless of user authentication.
+        Get logs from the Okta System Log API and optionally store them in MongoDB
         
         Args:
             params: Optional query parameters for filtering logs
@@ -281,18 +401,17 @@ class OktaLogsClient:
             if params is None:
                 params = {"limit": 100}
             
-            # Always use client credentials for logs API (service-to-service communication)
-            # This will work regardless of user authentication method
-            token_data = self.oauth_client.get_client_credentials_token("okta.logs.read okta.users.read")
-            access_token = token_data.get('access_token')
+            # Get an access token
+            access_token = self._get_token()
             
             # Get the DPoP nonce if available
-            dpop_nonce = self.oauth_client._get_dpop_nonce(self.logs_endpoint)
+            dpop_nonce = self._get_dpop_nonce(self.logs_endpoint)
             
             # Create DPoP proof with token binding
-            dpop_proof = self._create_dpop_proof_with_token_binding(
+            # For logs API, use exactly '/api/v1/logs' (not the full URL) for the htu claim
+            dpop_proof = self._create_dpop_proof(
                 "GET", 
-                self.logs_endpoint,  # Use the base endpoint, not including query params
+                self.logs_endpoint,
                 access_token,
                 dpop_nonce
             )
@@ -305,13 +424,54 @@ class OktaLogsClient:
                 "DPoP": dpop_proof
             }
             
+            # Debug information
             logger.debug(f"Making logs request to {self.logs_endpoint}")
+            logger.debug(f"Query parameters: {params}")
+            
+            # Check if the filter parameter uses proper ISO 8601 format
+            if 'filter' in params and 'published gt' in params['filter']:
+                logger.debug(f"Filter detected: {params['filter']}")
+                
+                # Make sure it's properly formatted for Okta API
+                # Okta's API expects filter=published gt "2025-05-03T01:04:38.075Z"
+                # Note: Make sure the date has a 'Z' suffix and milliseconds end with Z, not microseconds
+                if 'Z"' not in params['filter']:
+                    logger.debug("Fixing timestamp format in filter")
+                    date_pattern = r'"([^"]+)"'
+                    match = re.search(date_pattern, params['filter'])
+                    if match:
+                        original_date = match.group(1)
+                        if '.' in original_date:
+                            # If there are microseconds, truncate to milliseconds and add Z
+                            base_date, fraction = original_date.split('.')
+                            if 'Z' not in fraction:
+                                # Truncate microseconds to 3 digits (milliseconds) and add Z
+                                fixed_date = f"{base_date}.{fraction[:3]}Z"
+                                params['filter'] = params['filter'].replace(original_date, fixed_date)
+                                logger.debug(f"Fixed timestamp in filter: {params['filter']}")
+                        elif 'Z' not in original_date:
+                            # If no fraction, add Z if missing
+                            fixed_date = f"{original_date}Z"
+                            params['filter'] = params['filter'].replace(original_date, fixed_date)
+                            logger.debug(f"Added Z suffix to timestamp: {params['filter']}")
+            
+            # Make the request
             response = self.session.get(
                 self.logs_endpoint,
                 headers=headers,
                 params=params,
                 timeout=30  # Longer timeout for logs API
             )
+            
+            # Debug information - get full URL after params are added
+            logger.debug(f"Full request URL: {response.request.url}")
+            logger.debug(f"Response status: {response.status_code}")
+            
+            # Check for new nonce in the response and update cache
+            if "DPoP-Nonce" in response.headers:
+                new_nonce = response.headers.get("DPoP-Nonce")
+                logger.debug(f"Got new DPoP nonce from response: {new_nonce}")
+                cache.set(self.nonce_cache_key, new_nonce, timeout=3600)
             
             if response.status_code == 200:
                 logs_data = response.json()
@@ -322,15 +482,27 @@ class OktaLogsClient:
                     self._store_logs_in_mongodb(logs_data)
                 
                 return logs_data
+            elif response.status_code == 401 and "DPoP-Nonce" in response.headers and retry_on_error:
+                # Token or DPoP proof rejected, but we have a new nonce - retry
+                logger.warning("DPoP proof rejected, trying again with new nonce")
+                new_nonce = response.headers.get("DPoP-Nonce")
+                cache.set(self.nonce_cache_key, new_nonce, timeout=3600)
+                
+                # Retry with new nonce
+                return self.get_logs(params, retry_on_error=False, store_in_mongodb=store_in_mongodb)
+                
             elif response.status_code == 401 and retry_on_error:
-                # Token might be invalid, try again with a new token
+                # Token might be invalid, clear cache and try again with a new token
                 logger.warning("Token rejected, getting a new one and retrying")
+                cache.delete(self.token_cache_key)
                 
                 # Recursive call with retry_on_error=False to prevent infinite recursion
                 return self.get_logs(params, retry_on_error=False, store_in_mongodb=store_in_mongodb)
             else:
-                # Log the error
+                # Log the error and response content
                 logger.error(f"Failed to get logs. Status: {response.status_code}")
+                logger.error(f"Response content: {response.text[:500]}")
+                
                 try:
                     error_data = response.json()
                     logger.error(f"Error details: {json.dumps(error_data)}")
@@ -338,193 +510,17 @@ class OktaLogsClient:
                 except Exception:
                     error_msg = f"Status code: {response.status_code}, Response: {response.text[:200]}"
                     
+                # If it's a 400 error, it might be a filter format issue
+                if response.status_code == 400 and 'filter' in params:
+                    logger.warning("Potential issue with filter format. Trying simplified request.")
+                    
+                    # Try a simpler request with just the limit parameter
+                    simpler_params = {"limit": params.get("limit", 100)}
+                    if retry_on_error:
+                        return self.get_logs(simpler_params, retry_on_error=False, store_in_mongodb=store_in_mongodb)
+                
                 raise Exception(f"Failed to get Okta logs: {error_msg}")
                 
         except Exception as e:
             logger.error(f"Error retrieving logs: {str(e)}")
             raise Exception(f"Failed to retrieve Okta logs: {str(e)}")
-    
-    def get_logs_with_filter(self, event_type: Optional[str] = None, 
-                            start_date: Optional[str] = None,
-                            end_date: Optional[str] = None,
-                            filter_expression: Optional[str] = None,
-                            limit: int = 100,
-                            store_in_mongodb: bool = True) -> List[Dict]:
-        """
-        Get logs with specific filters
-        
-        Args:
-            event_type: Optional event type to filter (e.g., "user.session.start")
-            start_date: Optional start date in ISO 8601 format
-            end_date: Optional end date in ISO 8601 format
-            filter_expression: Optional custom filter expression
-            limit: Maximum number of records to return
-            store_in_mongodb: Whether to store the logs in MongoDB
-            
-        Returns:
-            List of log entries
-        """
-        # Build the parameters
-        params = {"limit": limit}
-        
-        # Build filter expressions
-        filters = []
-        
-        if event_type:
-            filters.append(f'eventType eq "{event_type}"')
-        
-        if start_date:
-            filters.append(f'published gt "{start_date}"')
-            
-        if end_date:
-            filters.append(f'published lt "{end_date}"')
-        
-        # Add custom filter if provided
-        if filter_expression:
-            filters.append(f'({filter_expression})')
-        
-        # Combine all filters
-        if filters:
-            params["filter"] = " and ".join(filters)
-        
-        return self.get_logs(params, store_in_mongodb=store_in_mongodb)
-    
-    def search_logs(self, query: str, limit: int = 100, store_in_mongodb: bool = True) -> List[Dict]:
-        """
-        Search logs using a simple query string
-        
-        Args:
-            query: Search query string
-            limit: Maximum number of records to return
-            store_in_mongodb: Whether to store the logs in MongoDB
-            
-        Returns:
-            List of log entries
-        """
-        # For simple queries, we'll try to be smart about common patterns
-        params = {"limit": limit}
-        
-        # Check for common query patterns and convert to appropriate filters
-        if "@" in query:  # Looks like an email
-            params["filter"] = f'actor.alternateId eq "{query}"'
-        elif query.startswith("user."):  # Looks like an event type
-            params["filter"] = f'eventType eq "{query}"'
-        elif query.lower() in ["success", "failed", "failure", "error"]:
-            params["filter"] = f'outcome.result eq "{query.upper()}"'
-        else:
-            # General search - try to find matching targets or actors
-            # This is an approximation, as Okta Logs API doesn't have a true search
-            params["q"] = query
-        
-        return self.get_logs(params, store_in_mongodb=store_in_mongodb)
-    
-    def get_logs_from_mongodb(self, 
-                             event_type: Optional[str] = None,
-                             start_date: Optional[str] = None,
-                             end_date: Optional[str] = None,
-                             user_id: Optional[str] = None,
-                             limit: int = 100,
-                             skip: int = 0) -> List[Dict]:
-        """
-        Retrieve logs from MongoDB with filtering capabilities
-        
-        Args:
-            event_type: Optional event type filter
-            start_date: Optional start date in ISO format
-            end_date: Optional end date in ISO format
-            user_id: Optional user ID to filter (checks both actor and target)
-            limit: Maximum number of records to return
-            skip: Number of records to skip (for pagination)
-            
-        Returns:
-            List of log entries from MongoDB
-        """
-        try:
-            # Get MongoDB collection
-            logs_collection = self.db_service.get_collection(self.db_name, self.logs_collection_name)
-            
-            # Build query
-            query = {}
-            
-            if event_type:
-                query["eventType"] = event_type
-                
-            date_query = {}
-            if start_date:
-                try:
-                    start_datetime = datetime.fromisoformat(start_date.replace('Z', '+00:00'))
-                    date_query["$gte"] = start_datetime
-                except ValueError:
-                    logger.warning(f"Invalid start_date format: {start_date}")
-                    
-            if end_date:
-                try:
-                    end_datetime = datetime.fromisoformat(end_date.replace('Z', '+00:00'))
-                    date_query["$lte"] = end_datetime
-                except ValueError:
-                    logger.warning(f"Invalid end_date format: {end_date}")
-                    
-            if date_query:
-                query["_published_date"] = date_query
-                
-            if user_id:
-                # Check for user_id in either actor or target
-                query["$or"] = [
-                    {"actor.id": user_id},
-                    {"target.id": user_id}
-                ]
-                
-            # Perform query
-            results = list(logs_collection.find(query)
-                          .sort("published", -1)
-                          .skip(skip)
-                          .limit(limit))
-            
-            # Remove MongoDB _id field before returning
-            for result in results:
-                if "_id" in result:
-                    del result["_id"]
-                    
-            logger.info(f"Retrieved {len(results)} logs from MongoDB")
-            return results
-            
-        except Exception as e:
-            logger.error(f"Error retrieving logs from MongoDB: {str(e)}")
-            return []
-            
-    def sync_recent_logs(self, hours: int = 24) -> Dict[str, Any]:
-        """
-        Sync recent logs from Okta to MongoDB
-        
-        Args:
-            hours: Number of hours of logs to sync (default: 24)
-            
-        Returns:
-            Dictionary with sync results
-        """
-        try:
-            # Calculate start date
-            start_date = (datetime.utcnow() - timedelta(hours=hours)).isoformat() + 'Z'
-            
-            # Get logs from Okta with date filter
-            params = {
-                "filter": f'published gt "{start_date}"',
-                "limit": 1000  # Maximum allowed by Okta API
-            }
-            
-            logs = self.get_logs(params, store_in_mongodb=True)
-            
-            return {
-                "success": True,
-                "logs_synced": len(logs),
-                "sync_period_hours": hours,
-                "start_date": start_date
-            }
-            
-        except Exception as e:
-            logger.error(f"Error syncing recent logs: {str(e)}")
-            return {
-                "success": False,
-                "error": str(e),
-                "sync_period_hours": hours
-            }
