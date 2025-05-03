@@ -1,23 +1,38 @@
 /* Dashboard Styles */
 :root {
-    /* Primary Colors */
-    --green-primary: #00ED64;
-    --green-secondary: #01C853;
-    --blue-primary: #0D6EFD;
+    /* MongoDB Color Palette */
+    --mongodb-green: #00ED64;
+    --mongodb-dark-green: #00C853;
+    --mongodb-evergreen: #00684A;
+    --mongodb-dark-1: #001E2B;
+    --mongodb-dark-2: #0C2E3C;
+    --mongodb-light-1: #F9FBFA;
+    --mongodb-light-2: #E8EDEB;
+    --mongodb-gray-3: #C1C7C6;
+    --mongodb-gray-4: #889392;
+    --mongodb-yellow: #FFDD00;
+    --mongodb-red: #FF0000;
+    --mongodb-orange: #ED7E21;
+    --mongodb-blue: #0D6EFD;
+    
+    /* Primary Colors - Mapped to MongoDB palette */
+    --green-primary: var(--mongodb-green);
+    --green-secondary: var(--mongodb-evergreen);
+    --blue-primary: var(--mongodb-blue);
     --blue-secondary: #0953C7;
     
-    /* Neutral Colors */
-    --dark-primary: #001E2B;
-    --dark-secondary: #023430;
-    --gray-lightest: #F9FBFA;
-    --gray-light: #E8EDEB;
-    --gray-medium: #C1C7C6;
-    --gray-dark: #889392;
+    /* Neutral Colors - Mapped to MongoDB palette */
+    --dark-primary: var(--mongodb-dark-1);
+    --dark-secondary: var(--mongodb-dark-2);
+    --gray-lightest: var(--mongodb-light-1);
+    --gray-light: var(--mongodb-light-2);
+    --gray-medium: var(--mongodb-gray-3);
+    --gray-dark: var(--mongodb-gray-4);
     
     /* Accent Colors */
-    --orange: #EF6C00;
-    --red: #DB3030;
-    --yellow: #FFCA28;
+    --orange: var(--mongodb-orange);
+    --red: var(--mongodb-red);
+    --yellow: var(--mongodb-yellow);
     --purple: #6E31E0;
     
     /* Legacy variables for backward compatibility */
@@ -35,8 +50,6 @@
     --red-2: var(--red);
     --yellow-1: var(--yellow);
     --purple-1: var(--purple);
-    --mongodb-green: var(--green-primary);
-    --mongodb-dark: var(--dark-primary);
     
     /* Spacing Variables */
     --space-xs: 0.25rem;  /* 4px */
@@ -46,15 +59,15 @@
     --space-xl: 2rem;     /* 32px */
     
     /* Component Sizing */
-    --border-radius-sm: 6px;
-    --border-radius-md: 8px;
-    --border-radius-lg: 12px;
-    --border-radius-full: 100px;
+    --border-radius-sm: 0.375rem;  /* 6px */
+    --border-radius-md: 0.5rem;    /* 8px */
+    --border-radius-lg: 0.75rem;   /* 12px */
+    --border-radius-full: 6.25rem;  /* 100px */
     
     /* Shadows */
-    --shadow-sm: 0 2px 10px rgba(0, 0, 0, 0.05);
-    --shadow-md: 0 5px 15px rgba(0, 0, 0, 0.1);
-    --shadow-lg: 0 15px 30px rgba(0, 0, 0, 0.15);
+    --shadow-sm: 0 0.125rem 0.625rem rgba(0, 30, 43, 0.05);
+    --shadow-md: 0 0.313rem 0.938rem rgba(0, 30, 43, 0.1);
+    --shadow-lg: 0 0.938rem 1.875rem rgba(0, 30, 43, 0.15);
     
     /* Transitions */
     --transition-speed: 0.3s;
@@ -110,6 +123,10 @@ p {
     margin-bottom: var(--space-sm) !important;
 }
 
+.mb-4 {
+    margin: 0 !important;
+}
+
 .mt-2 {
     margin-top: 0.5rem !important;
 }
@@ -159,8 +176,8 @@ p {
 
 .sidebar-brand {
     font-weight: 700;
-    font-size: 1.3rem;
-    color: var (--dark-1);
+    font-size: 1.7rem;
+    color: var(--green-2);
     text-decoration: none;
     display: flex;
     align-items: center;
@@ -225,9 +242,9 @@ p {
 }
 
 .page-title {
-    font-size: 1.5rem;
+    font-size: 1.7rem;
     font-weight: 600;
-    color: var(--dark-1);
+    color: var(--green-2);
     margin: 0;
 }
 
@@ -244,26 +261,26 @@ p {
 
 .user-name {
     font-weight: 600;
-    color: var (--dark-1);
-    font-size: 0.9rem;
+    color: var(--green-2);
+    font-size: 1.3rem;
 }
 
 .user-role {
     color: var(--gray-4);
-    font-size: 0.75rem;
+    font-size: 1.1rem;
 }
 
 .user-avatar {
     width: 40px;
     height: 40px;
     border-radius: 50%;
-    background-color: var(--green-1);
+    background-color: var(--green-2);
     color: white;
     display: flex;
     align-items: center;
     justify-content: center;
     font-weight: 600;
-    font-size: 1rem;
+    font-size: 1.3rem;
     box-shadow: 0 3px 6px rgba(1, 200, 83, 0.2);
 }
 
@@ -273,7 +290,7 @@ p {
     border-radius: 12px;
     box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
     padding: 20px;
-    margin-bottom: 25px;
+    margin-bottom: 15px;
     transition: all 0.3s;
     height: 100%;
 }
@@ -339,7 +356,7 @@ p {
 
 .stat-title {
     color: var(--gray-4);
-    font-size: 0.9rem;
+    font-size: 1.1rem;
     font-weight: 500;
     margin: 0;
     padding: 0;
@@ -348,7 +365,7 @@ p {
 .stat-value {
     font-size: 2rem;
     font-weight: 700;
-    color: var(--dark-1);
+    color: var(--green-2);
     margin: 0;
     padding: 0;
     line-height: 1.2;
@@ -369,21 +386,25 @@ p {
 .trend-up {
     color: var(--green-2);
     font-weight: 600;
+    font-size: 1rem;
 }
 
 .trend-down {
     color: var(--red-2);
     font-weight: 600;
+    font-size: 1rem;
 }
 
 .trend-neutral {
     color: var(--gray-4);
     font-weight: 600;
+    font-size: 1rem;
 }
 
 .stat-period {
     color: var(--gray-4);
     margin-left: auto;
+    font-size: 1rem;
 }
 
 /* Activity table styles */
@@ -391,9 +412,15 @@ p {
     background-color: white;
     border-radius: 12px;
     box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
-    padding: 0;
-    margin-bottom: 25px;
+    padding: 20px;
+    margin-bottom: 15px;
+    transition: all 0.3s;
     overflow: hidden;
+}
+
+.content-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 7px 15px rgba(0, 0, 0, 0.1);
 }
 
 .card-header {
@@ -405,9 +432,9 @@ p {
 }
 
 .card-title {
-    font-size: 1.1rem;
+    font-size: 1.7rem;
     font-weight: 600;
-    color: var(--dark-1);
+    color: var(--green-2);
     margin: 0;
 }
 
@@ -430,7 +457,7 @@ p {
     background-color: var(--gray-1);
     color: var(--gray-4);
     font-weight: 600;
-    font-size: 0.85rem;
+    font-size: 1rem;
     text-transform: uppercase;
     padding: 15px 20px;
     border: none;
@@ -491,13 +518,21 @@ p {
 }
 
 .btn-primary {
+    padding: 6px 14px;
+    border-radius: 100px;
+    font-size: 1.3rem;
+    font-weight: 600;
+    color: white;
     background-color: var(--green-2);
-    border-color: var(--green-2);
+    border: none;
+    transition: all 0.2s;
+    cursor: pointer;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
 }
 
 .btn-primary:hover, .btn-primary:focus {
-    background-color: var(--green-1);
-    border-color: var(--green-1);
+    background-color: var(--green-2);
+    border-color: var(--green-2);
     box-shadow: 0 0 0 0.2rem rgba(1, 200, 83, 0.25);
 }
 
@@ -528,7 +563,7 @@ p {
 .filter-btn {
     padding: 6px 14px;
     border-radius: 100px;
-    font-size: 0.8rem;
+    font-size: 1.1rem;
     font-weight: 600;
     color: var(--gray-4);
     background-color: var(--gray-1);
@@ -554,7 +589,7 @@ p {
 .legend-item {
     display: flex;
     align-items: center;
-    font-size: 0.9rem;
+    font-size: 1rem;
     color: var(--gray-4);
 }
 
@@ -687,8 +722,7 @@ p {
     }
 
     .col-md-3, .col-md-6, .col-lg-8, .col-lg-4 {
-        padding-left: 10px;
-        padding-right: 10px;
+        padding: 15px !important;
     }
 
     .topbar {
@@ -817,7 +851,7 @@ p {
 
 .time-filter-item {
     padding: 8px 20px;
-    font-size: 0.9rem;
+    font-size: 1rem;
     color: var(--dark-1);
     cursor: pointer;
     transition: all 0.2s;
@@ -849,7 +883,7 @@ p {
 .stat-card:nth-child(4) { animation-delay: 0.4s; }
 
 /* Additional Classes for Colors */
-.bg-green-2 { background-color: var(--green-2); }
+.bg-green-2 { background-color: var(--mongodb-dark-green); }
 .bg-yellow-1 { background-color: var(--yellow-1); }
 .bg-red-2 { background-color: var(--red-2); }
 
@@ -2140,7 +2174,7 @@ footer {
 .stat-value {
     font-size: 2.5rem;
     font-weight: 700;
-    color: var(--green-1);
+    color: var(--green-2);
     margin-bottom: 10px;
 }
 
@@ -2348,7 +2382,7 @@ footer {
 .stat-card:nth-child(4) { animation-delay: 0.4s; }
 
 /* Additional Classes for Colors */
-.bg-green-2 { background-color: var(--green-2); }
+.bg-green-2 { background-color: var(--mongodb-dark-green); }
 .bg-yellow-1 { background-color: var(--yellow-1); }
 .bg-red-2 { background-color: var(--red-2); }
 .bg-blue-1 { background-color: var(--blue-1); }

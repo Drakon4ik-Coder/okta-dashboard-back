@@ -1,5 +1,6 @@
 import logging
 import requests
+import os
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Union, Any
 from django.conf import settings
@@ -27,10 +28,14 @@ class OktaApiClient:
             org_url: The Okta organization URL
             oauth_token: OAuth 2.0 access token (preferred for zero-trust model)
         """
-        self.api_token = api_token or settings.OKTA_API_TOKEN
-        self.org_url = org_url or settings.OKTA_ORG_URL
+        # Prioritize provided parameters, then environment variables, then settings
+        self.api_token = api_token or os.environ.get('OKTA_API_TOKEN', settings.OKTA_API_TOKEN)
+        self.org_url = org_url or os.environ.get('OKTA_ORG_URL', settings.OKTA_ORG_URL)
         self.oauth_token = oauth_token
         self.base_url = f"{self.org_url}/api/v1"
+        
+        # Log configuration for debugging
+        logger.debug(f"OktaApiClient initialized with URL: {self.org_url}")
         
         # Use OAuth token if provided (zero-trust approach), otherwise use API token
         if self.oauth_token:

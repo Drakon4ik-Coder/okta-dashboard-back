@@ -40,11 +40,11 @@ OKTA_CLIENT_SECRET = env("OKTA_CLIENT_SECRET", default=None)
 OKTA_EVENT_HOOK_SECRET = os.environ["OKTA_EVENT_HOOK_SECRET"]
 
 # Okta Settings
-OKTA_AUTHORIZATION_ENDPOINT = "https://dev-72300026.okta.com/oauth2/v1/authorize"
-OKTA_TOKEN_ENDPOINT = "https://dev-72300026.okta.com/oauth2/v1/token"
-OKTA_REDIRECT_URI = "http://127.0.0.1:8000/okta/callback"
-OKTA_USER_INFO_ENDPOINT = "https://dev-72300026.okta.com/oauth2/v1/userinfo"
-OKTA_SCOPES = "openid profile email okta.users.read okta.logs.read okta.apps.read"
+OKTA_AUTHORIZATION_ENDPOINT = f"{OKTA_ORG_URL}/oauth2/v1/authorize" if OKTA_ORG_URL else None
+OKTA_TOKEN_ENDPOINT = env("OKTA_TOKEN_ENDPOINT", default=f"{OKTA_ORG_URL}/oauth2/v1/token" if OKTA_ORG_URL else None)
+OKTA_REDIRECT_URI = env("OKTA_REDIRECT_URI", default="http://127.0.0.1:8000/okta/callback")
+OKTA_USER_INFO_ENDPOINT = f"{OKTA_ORG_URL}/oauth2/v1/userinfo" if OKTA_ORG_URL else None
+OKTA_SCOPES = env("OKTA_SCOPES", default="openid profile email okta.users.read okta.logs.read okta.apps.read")
 
 # Zero Trust Authentication Settings
 TOKEN_REVALIDATION_INTERVAL = 300  # Validate tokens every 5 minutes
@@ -90,6 +90,7 @@ INSTALLED_APPS = [
 	# Custom apps
 	'rest_framework',
 	'authentication',  # Add the new authentication app
+	'okta_auth.apps.OktaAuthConfig',  # Add the Okta authentication app
 	
 	# Performance optimizations
 	'django_prometheus',
@@ -216,26 +217,32 @@ MONGODB_SETTINGS = {
 	"waitQueueTimeoutMS": env.int("MONGO_WAIT_QUEUE_TIMEOUT_MS", default=5000),
 }
 
-# Establish MongoDB connection
+# Establish MongoDB connection - now using the URL if available
+MONGODB_URL = env("MONGODB_URL", default=None)
+if not MONGODB_URL:
+    # Construct MongoDB URL from individual settings
+    auth_part = f"{MONGODB_SETTINGS['username']}:{MONGODB_SETTINGS['password']}@" if MONGODB_SETTINGS['username'] and MONGODB_SETTINGS['password'] else ""
+    MONGODB_URL = f"mongodb://{auth_part}{MONGODB_SETTINGS['host']}:{MONGODB_SETTINGS['port']}/{MONGODB_SETTINGS['db']}"
+
+# Try to connect but don't block app startup if MongoDB is not available
 try:
     connect(
-        db=MONGODB_SETTINGS["db"],
-        host=MONGODB_SETTINGS["host"],
-        port=MONGODB_SETTINGS["port"],
-        username=MONGODB_SETTINGS["username"],
-        password=MONGODB_SETTINGS["password"],
-        authentication_source=MONGODB_SETTINGS.get("authentication_source"),
-        maxPoolSize=MONGODB_SETTINGS.get("maxPoolSize"),
-        minPoolSize=MONGODB_SETTINGS.get("minPoolSize"),
+        host=MONGODB_URL,
+        alias='default',
+        serverSelectionTimeoutMS=MONGODB_SETTINGS.get("serverSelectionTimeoutMS"),
         connectTimeoutMS=MONGODB_SETTINGS.get("connectTimeoutMS"),
         socketTimeoutMS=MONGODB_SETTINGS.get("socketTimeoutMS"),
-        serverSelectionTimeoutMS=MONGODB_SETTINGS.get("serverSelectionTimeoutMS"),
-        waitQueueTimeoutMS=MONGODB_SETTINGS.get("waitQueueTimeoutMS"),
+        maxPoolSize=MONGODB_SETTINGS.get("maxPoolSize"),
+        minPoolSize=MONGODB_SETTINGS.get("minPoolSize"),
     )
+    import logging
+    logger = logging.getLogger('django')
+    logger.info("Successfully connected to MongoDB")
 except Exception as e:
     import logging
     logger = logging.getLogger('django')
     logger.warning(f"MongoDB connection failed: {e}")
+    logger.info("Will retry MongoDB connection on first database access")
 
 # Database settings - optimized for production
 DATABASES = {
@@ -296,7 +303,10 @@ USE_TZ = True
 
 # Static and media files - optimized
 STATIC_URL = "/static/"
-STATICFILES_DIRS = [BASE_DIR / "traffic_analysis/static"]  # Updated to use new app path
+STATICFILES_DIRS = [
+    BASE_DIR / "traffic_analysis/static",  # Updated to use new app path
+    BASE_DIR / "okta_auth/static",  # Add the okta_auth static directory
+]
 STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 WHITENOISE_AUTOREFRESH = not DEBUG  # Only refresh in development
 WHITENOISE_USE_FINDERS = DEBUG  # Only in development
