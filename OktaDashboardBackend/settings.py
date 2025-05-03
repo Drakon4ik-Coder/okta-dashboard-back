@@ -39,9 +39,6 @@ OKTA_ORG_URL = env("OKTA_ORG_URL", default=None)
 OKTA_CLIENT_ID = env("OKTA_CLIENT_ID", default=None)
 OKTA_CLIENT_SECRET = env("OKTA_CLIENT_SECRET", default=None)
 
-# Okta WebHook
-OKTA_EVENT_HOOK_SECRET = os.environ["OKTA_EVENT_HOOK_SECRET"]
-
 # Okta Settings
 OKTA_AUTHORIZATION_ENDPOINT = f"{OKTA_ORG_URL}/oauth2/v1/authorize" if OKTA_ORG_URL else None
 OKTA_TOKEN_ENDPOINT = env("OKTA_TOKEN_ENDPOINT", default=f"{OKTA_ORG_URL}/oauth2/v1/token" if OKTA_ORG_URL else None)
