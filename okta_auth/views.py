@@ -36,10 +36,16 @@ def direct_login_view(request: HttpRequest) -> HttpResponse:
         username = request.POST.get('username')
         password = request.POST.get('password')
         
-        # Authenticate against Django's user system
+        # Authenticate against Django's user system + Timing and Logging
+        start_time = time.time()
         user = authenticate(request, username=username, password=password)
-        
+        end_time = time.time()
+        elapsed_ms = round((end_time - start_time) * 1000, 2)
+
         if user is not None:
+            # Log the authentication time
+            logger.info(f"User {user.username} authenticated successfully. authenticationElapsedTime: {elapsed_ms}")
+
             # Log the user in
             login(request, user)
             
@@ -67,6 +73,7 @@ def direct_login_view(request: HttpRequest) -> HttpResponse:
             return redirect(next_url)
         else:
             # Authentication failed
+            logger.warning(f"Failed login attempt for username '{username}'. authenticationElapsedTime: {elapsed_ms}")
             return render(request, 'okta_auth/login.html', {
                 'error': 'Invalid username or password',
                 'next': request.POST.get('next', '/dashboard')
@@ -114,6 +121,8 @@ def oauth_callback(request: HttpRequest) -> HttpResponse:
     """
     Handle OAuth callback from Okta
     """
+    start_time = time.time()
+
     # Log information about the request for debugging
     logger.debug(f"Callback received, session ID: {request.session.session_key}")
     
@@ -273,6 +282,11 @@ def oauth_callback(request: HttpRequest) -> HttpResponse:
         login(request, user)
         logger.info(f"User {user.username} successfully authenticated")
 
+        # Measure and log the total authentication time for Okta login
+        end_time = time.time()
+        elapsed_ms = round((end_time - start_time) * 1000, 2)
+        logger.info(f"User {user.username} authenticated via Okta. authenticationElapsedTime: {elapsed_ms}")
+
         # Store Okta user ID in session for later use
         request.session['okta_user_id'] = sub
         
@@ -291,11 +305,16 @@ def oauth_callback(request: HttpRequest) -> HttpResponse:
         request.session['device_token'] = signed_device_token
         
         # Get and store average login time statistics
-        from login_tracking.metrics import get_cached_avg_login_time
+        from login_tracking.utils import get_cached_avg_login_time
         avg_login_data = get_cached_avg_login_time()
         request.session['avg_login_time'] = avg_login_data
-        
-        # Securely store tokens - encrypt with user-specific key
+        if avg_login_data and 'avg_ms' in avg_login_data:
+            logger.info(
+                f"Current average login time (1-day): {avg_login_data['avg_ms']} ms "
+                f"(trend: {avg_login_data.get('trend_value', 0)}%)"
+            )
+
+    # Securely store tokens - encrypt with user-specific key
         # This isolates tokens per user and session
         if access_token:
             request.session['access_token'] = TokenEncryptor.encrypt_token(access_token, str(user.id))

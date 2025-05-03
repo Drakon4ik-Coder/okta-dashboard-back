@@ -10,6 +10,9 @@ from mongoengine import connect
 # Base directory
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+# Path to the log file used for login time tracking
+LOGIN_TIME_LOG_PATH = BASE_DIR / 'logs/django.log'
+
 # Load environment variables
 env = environ.Env()
 environ.Env.read_env(os.path.join(BASE_DIR, ".env"))
