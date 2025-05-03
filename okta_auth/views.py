@@ -26,8 +26,61 @@ from okta_auth.services.token_encryption import TokenEncryptor
 logger = logging.getLogger(__name__)
 oauth_client = OktaOAuthClient()
 
+# New direct login view that doesn't use Okta redirect
 @ensure_csrf_cookie
-def login_view(request: HttpRequest) -> HttpResponse:
+def direct_login_view(request: HttpRequest) -> HttpResponse:
+    """
+    Direct login with username/password without Okta redirect
+    """
+    if request.method == 'POST':
+        username = request.POST.get('username')
+        password = request.POST.get('password')
+        
+        # Authenticate against Django's user system
+        user = authenticate(request, username=username, password=password)
+        
+        if user is not None:
+            # Log the user in
+            login(request, user)
+            
+            # Set session values needed for the application
+            request.session['okta_user_id'] = f"local_{user.id}"  # Prefix with local_ to differentiate
+            request.session['auth_time'] = int(time.time())
+            request.session['token_last_validated'] = int(time.time())
+            
+            # Generate a device ID if not present
+            if not request.session.get('device_id'):
+                request.session['device_id'] = str(uuid.uuid4())
+            
+            # Create a signed device token for token rotation security
+            device_token = get_random_string(32)
+            signer = TimestampSigner()
+            signed_device_token = signer.sign(device_token)
+            request.session['device_token'] = signed_device_token
+            
+            # Store authorization in the session
+            request.session['is_authenticated'] = True
+            request.session['auth_method'] = 'local'
+            
+            # Redirect to next URL or dashboard
+            next_url = request.POST.get('next', '/dashboard')
+            return redirect(next_url)
+        else:
+            # Authentication failed
+            return render(request, 'okta_auth/login.html', {
+                'error': 'Invalid username or password',
+                'next': request.POST.get('next', '/dashboard')
+            })
+    else:
+        # GET request - show login form
+        next_url = request.GET.get('next', '/dashboard')
+        return render(request, 'okta_auth/login.html', {
+            'next': next_url
+        })
+
+# Keep the original Okta login view but rename it
+@ensure_csrf_cookie
+def okta_login_view(request: HttpRequest) -> HttpResponse:
     """
     Initiate OAuth flow with Okta
     """
@@ -53,6 +106,8 @@ def login_view(request: HttpRequest) -> HttpResponse:
     auth_url = oauth_client.get_authorization_url(state)
     return redirect(auth_url)
 
+# Original function renamed - replace login_view with direct_login_view as the primary login method
+login_view = direct_login_view
 
 @require_http_methods(['GET'])
 def oauth_callback(request: HttpRequest) -> HttpResponse:

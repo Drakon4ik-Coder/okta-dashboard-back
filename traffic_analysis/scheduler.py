@@ -1,6 +1,8 @@
 import logging
 from django_q.models import Schedule
-from django_q.tasks import schedule
+from django_q.tasks import schedule, async_task
+import sys
+from OktaDashboardBackend.services.database import DatabaseService
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +36,44 @@ def register_scheduled_tasks():
     
     logger.info("Successfully registered task to fetch Okta logs every minute")
     logger.info("Successfully registered task to update login time cache every 10 minutes")
+    
+    # Run an immediate fetch of Okta logs at startup
+    if 'runserver' in sys.argv or 'uvicorn' in sys.argv:
+        initial_fetch_logs()
+
+def initial_fetch_logs():
+    """
+    Perform an initial fetch of Okta logs at server startup.
+    This ensures we have fresh data immediately without waiting for the schedule.
+    """
+    try:
+        # Make sure MongoDB is connected first
+        db_service = DatabaseService()
+        if not db_service.is_connected():
+            logger.warning("MongoDB connection failed during startup, skipping initial log fetch")
+            return
+            
+        logger.info("Performing initial Okta logs fetch at startup...")
+        # Queue the fetch task to run immediately but asynchronously
+        # This prevents delaying the server startup process
+        async_task(
+            'django.core.management.call_command',
+            'fetch_okta_logs',
+            '--minutes',
+            '60',  # Fetch the last hour of logs on startup
+            hook='traffic_analysis.scheduler.log_fetch_callback'
+        )
+    except Exception as e:
+        logger.error(f"Error during initial Okta logs fetch: {str(e)}")
+
+def log_fetch_callback(task):
+    """
+    Callback function for the async log fetch task
+    """
+    if task.success:
+        logger.info("Initial Okta logs fetch completed successfully")
+    else:
+        logger.error(f"Initial Okta logs fetch failed: {task.result}")
 
 def setup_scheduled_tasks(sender, **kwargs):
     """
@@ -49,6 +89,13 @@ def setup_scheduled_tasks(sender, **kwargs):
     import sys
     if 'runserver' in sys.argv or 'uvicorn' in sys.argv:
         try:
+            # Ensure MongoDB is connected
+            db_service = DatabaseService()
+            if db_service.is_connected():
+                logger.info("MongoDB connection verified during server startup")
+            else:
+                logger.warning("MongoDB connection check failed during startup")
+                
             register_scheduled_tasks()
         except Exception as e:
             logger.error(f"Failed to register scheduled tasks: {str(e)}")
