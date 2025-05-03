@@ -37,11 +37,14 @@ OKTA_CLIENT_ID = env("OKTA_CLIENT_ID", default=None)
 OKTA_CLIENT_SECRET = env("OKTA_CLIENT_SECRET", default=None)
 
 # Okta Settings
-OKTA_AUTHORIZATION_ENDPOINT = "https://dev-72300026.okta.com/oauth2/v1/authorize"
-OKTA_TOKEN_ENDPOINT = "https://dev-72300026.okta.com/oauth2/v1/token"
-OKTA_REDIRECT_URI = "http://127.0.0.1:8000/okta/callback"
-OKTA_USER_INFO_ENDPOINT = "https://dev-72300026.okta.com/oauth2/v1/userinfo"
-OKTA_SCOPES = "openid profile email okta.users.read okta.logs.read okta.apps.read"
+OKTA_AUTHORIZATION_ENDPOINT = env("OKTA_AUTHORIZATION_ENDPOINT", 
+                               default=f"{OKTA_ORG_URL}/oauth2/v1/authorize" if OKTA_ORG_URL else None)
+OKTA_TOKEN_ENDPOINT = env("OKTA_TOKEN_ENDPOINT", 
+                         default=f"{OKTA_ORG_URL}/oauth2/v1/token" if OKTA_ORG_URL else None)
+OKTA_REDIRECT_URI = env("OKTA_REDIRECT_URI", default="http://127.0.0.1:8000/okta/callback")
+OKTA_USER_INFO_ENDPOINT = env("OKTA_USER_INFO_ENDPOINT", 
+                             default=f"{OKTA_ORG_URL}/oauth2/v1/userinfo" if OKTA_ORG_URL else None)
+OKTA_SCOPES = env("OKTA_SCOPES", default="openid profile email okta.users.read okta.logs.read okta.apps.read")
 
 # Zero Trust Authentication Settings
 TOKEN_REVALIDATION_INTERVAL = 300  # Validate tokens every 5 minutes

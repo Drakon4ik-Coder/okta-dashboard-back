@@ -13,43 +13,48 @@ from cryptography.hazmat.primitives import serialization
 from typing import Dict, Optional, Tuple, Any
 from django.conf import settings
 from django.core.cache import cache
+from urllib.parse import urlparse
 
 logger = logging.getLogger(__name__)
 
 class OktaOAuthClient:
     """
-    OAuth client for Okta authentication.
+    OAuth client for Okta authentication with enhanced security features.
     
-    This class implements OAuth 2.0 authorization code flow to authenticate with Okta,
-    supporting the zero trust security model by validating access tokens and user information.
+    This class implements OAuth 2.0 flows to authenticate with Okta,
+    supporting the zero trust security model through:
+    1. DPoP (Demonstrating Proof of Possession) for token binding
+    2. private_key_jwt for client authentication (more secure than client secret)
+    3. Automatic token refresh and proper token lifetime management
     """
     
     # Class-level cache for RSA keys
     _rsa_key_cache = {}
     
-    def __init__(self):
-        """Initialize the OAuth client with settings from Django configuration"""
+    def __init__(self, use_registered_keys=True):
+        """
+        Initialize the OAuth client with settings from Django configuration
+        
+        Args:
+            use_registered_keys: Whether to use the registered keys from the keys/ directory
+                                 If False, dynamically generate keys (but this won't work with real Okta unless registered)
+        """
         self.client_id = settings.OKTA_CLIENT_ID
         self.client_secret = settings.OKTA_CLIENT_SECRET
         self.redirect_uri = settings.OKTA_REDIRECT_URI
         self.authorization_endpoint = settings.OKTA_AUTHORIZATION_ENDPOINT
         self.token_endpoint = settings.OKTA_TOKEN_ENDPOINT
         self.userinfo_endpoint = settings.OKTA_USER_INFO_ENDPOINT
+        self.org_url = settings.OKTA_ORG_URL
         
-        # Generate RSA key pair for DPoP (with caching)
-        self._setup_key_pair()
+        # Load or generate RSA key pair for DPoP
+        self._setup_key_pair(use_registered_keys)
         
-        # Headers for token requests
-        auth_string = f"{self.client_id}:{self.client_secret}"
-        encoded_auth = base64.b64encode(auth_string.encode()).decode()
-        self.token_headers = {
-            "Authorization": f"Basic {encoded_auth}",
-            "Content-Type": "application/x-www-form-urlencoded"
-        }
+        # Headers for token requests (will be set during request creation)
+        self.token_headers = {}
         
         # Cache for DPoP nonces with expiration
         self.nonce_cache_key = f"dpop_nonce_{self.client_id}"
-        self.nonce_cache_ttl = 300  # 5 minutes
         
         # Session for connection pooling and performance optimization
         self.session = self._create_optimized_session()
@@ -72,58 +77,54 @@ class OktaOAuthClient:
         
         return session
     
-    def _setup_key_pair(self):
-        """Set up RSA key pair for DPoP proof with caching"""
-        # Try to get from class cache first
-        cache_key = f"rsa_keys_{self.client_id}"
-        if cache_key in self._rsa_key_cache:
-            logger.debug("Using cached RSA key pair")
-            key_data = self._rsa_key_cache[cache_key]
-            self.private_key = key_data['private_key']
-            self.jwk = key_data['jwk']
-            return
-            
-        # Try to get from Django cache
-        cached_key_data = cache.get(cache_key)
-        if cached_key_data:
-            logger.debug("Using Django cached RSA key pair")
-            # We need to deserialize the private key
-            self.private_key = serialization.load_pem_private_key(
-                cached_key_data['private_key_pem'],
-                password=None
-            )
-            self.jwk = cached_key_data['jwk']
-        else:
-            # Generate new keys
-            logger.debug("Generating new RSA key pair")
-            self._generate_key_pair()
-            
-            # Save to Django cache
-            private_key_pem = self.private_key.private_bytes(
-                encoding=serialization.Encoding.PEM,
-                format=serialization.PrivateFormat.PKCS8,
-                encryption_algorithm=serialization.NoEncryption()
-            )
-            cache.set(cache_key, {
-                'private_key_pem': private_key_pem,
-                'jwk': self.jwk
-            }, 86400)  # Cache for 24 hours
-            
-            # Save to class cache
-            self._rsa_key_cache[cache_key] = {
-                'private_key': self.private_key,
-                'jwk': self.jwk
-            }
-    
-    def _generate_key_pair(self):
-        """Generate RSA key pair for DPoP proof"""
-        # Generate private key
+    def _setup_key_pair(self, use_registered_keys=True):
+        """
+        Set up RSA key pairs for both DPoP and client authentication
+        
+        Args:
+            use_registered_keys: Whether to use the registered keys from keys/ directory
+        """
+        if use_registered_keys:
+            try:
+                # Use the same private key that was registered with Okta
+                private_key_path = os.path.join(settings.BASE_DIR, 'keys', 'private_key.pem')
+                with open(private_key_path, 'rb') as key_file:
+                    private_key_data = key_file.read()
+                
+                self.private_key = serialization.load_pem_private_key(
+                    private_key_data,
+                    password=None
+                )
+                logger.info("Successfully loaded the registered private key")
+                
+                # Generate JWK from the loaded key
+                self._generate_jwk_from_key()
+                
+                # For DPoP, we'll generate a separate key (security best practice)
+                self.dpop_private_key = rsa.generate_private_key(
+                    public_exponent=65537,
+                    key_size=2048
+                )
+                self._generate_dpop_jwk()
+                
+                return
+            except Exception as e:
+                logger.warning(f"Could not load registered private key: {e}. Generating new keys.")
+        
+        # If we reach here, either use_registered_keys is False or loading failed
+        # Generate client auth key
         self.private_key = rsa.generate_private_key(
             public_exponent=65537,
             key_size=2048
         )
+        self._generate_jwk_from_key()
         
-        # Get public key in JWK format
+        # Use the same key for DPoP to keep it simple when not using registered keys
+        self.dpop_private_key = self.private_key
+        self.dpop_jwk = self.jwk
+    
+    def _generate_jwk_from_key(self):
+        """Generate JWK from the client authentication private key"""
         public_key = self.private_key.public_key()
         public_numbers = public_key.public_numbers()
         
@@ -136,51 +137,94 @@ class OktaOAuthClient:
             "use": "sig"
         }
     
-    def _create_dpop_proof(self, http_method: str, url: str, nonce: Optional[str] = None) -> str:
+    def _generate_dpop_jwk(self):
+        """Generate JWK for DPoP (separate from client authentication key)"""
+        dpop_public_key = self.dpop_private_key.public_key()
+        dpop_public_numbers = dpop_public_key.public_numbers()
+        
+        # Convert to JWK format
+        self.dpop_jwk = {
+            "kty": "RSA",
+            "e": base64.urlsafe_b64encode(dpop_public_numbers.e.to_bytes((dpop_public_numbers.e.bit_length() + 7) // 8, byteorder='big')).decode('utf-8').rstrip('='),
+            "n": base64.urlsafe_b64encode(dpop_public_numbers.n.to_bytes((dpop_public_numbers.n.bit_length() + 7) // 8, byteorder='big')).decode('utf-8').rstrip('='),
+            "alg": "RS256",
+            "use": "sig"
+        }
+    
+    def _normalize_url_for_dpop(self, method: str, url: str) -> str:
         """
-        Create a DPoP proof JWT for API requests.
+        Normalize URL for DPoP proof as per Okta requirements
+        
+        Args:
+            method: HTTP method
+            url: The original URL
+            
+        Returns:
+            Normalized URL for DPoP proof
+        """
+        parsed_url = urlparse(url)
+        
+        # For Okta System Log API, use exactly '/api/v1/logs'
+        if '/api/v1/logs' in url:
+            return "/api/v1/logs"
+        elif '/oauth2/v1/token' in url:
+            # For token endpoint, use full URL
+            return url
+        else:
+            # For other endpoints, use the full URL
+            return url
+    
+    def _create_dpop_proof(self, http_method: str, url: str, access_token: Optional[str] = None, nonce: Optional[str] = None) -> str:
+        """
+        Create a DPoP proof JWT for API requests with token binding.
         
         Args:
             http_method: HTTP method (POST, GET, etc.)
             url: Target URL
+            access_token: Optional access token to bind to the proof
             nonce: Optional nonce from server
             
         Returns:
             DPoP proof JWT string
         """
         # Create the private key in PEM format for JWT signing
-        private_key_pem = self.private_key.private_bytes(
+        private_key_pem = self.dpop_private_key.private_bytes(
             encoding=serialization.Encoding.PEM,
             format=serialization.PrivateFormat.PKCS8,
             encryption_algorithm=serialization.NoEncryption()
         )
         
-        # Parse the URL to extract components and normalize for DPoP
-        from urllib.parse import urlparse
-        parsed_url = urlparse(url)
-        
-        # For token endpoint, use full URL
-        normalized_url = url
+        # Normalize URL for DPoP
+        normalized_url = self._normalize_url_for_dpop(http_method, url)
         
         # Create DPoP proof JWT
         now = int(time.time())
         proof = {
             "jti": str(uuid.uuid4()),  # Unique identifier
             "htm": http_method,        # HTTP method
-            "htu": normalized_url,     # HTTP target URL
+            "htu": normalized_url,     # HTTP target URL (normalized)
             "iat": now,                # Issued at time
             "exp": now + 60            # Expiration (1 minute)
         }
         
+        # Add token binding with 'ath' claim if access token is provided
+        if access_token:
+            # Create hash of the access token
+            access_token_hash = hashlib.sha256(access_token.encode()).digest()
+            # Base64url encode the hash
+            ath = base64.urlsafe_b64encode(access_token_hash).decode('utf-8').rstrip('=')
+            proof["ath"] = ath
+        
         # Add nonce if provided - required for subsequent requests
         if nonce:
             proof["nonce"] = nonce
+            logger.debug(f"Including nonce in DPoP proof: {nonce}")
         
         # Create the header with the JWK
         header = {
             "typ": "dpop+jwt",
             "alg": "RS256",
-            "jwk": self.jwk
+            "jwk": self.dpop_jwk
         }
         
         # Sign the JWT
@@ -204,9 +248,18 @@ class OktaOAuthClient:
         Returns:
             The DPoP nonce if available, None otherwise
         """
+        # Check if we have a cached nonce
+        cached_nonce = cache.get(self.nonce_cache_key)
+        if cached_nonce:
+            logger.debug(f"Using cached DPoP nonce: {cached_nonce}")
+            return cached_nonce
+            
         try:
             # Create initial DPoP proof without nonce
             initial_proof = self._create_dpop_proof("POST", url)
+            
+            # Create client assertion for private_key_jwt
+            client_assertion = self._create_client_assertion(url)
             
             # Create minimal headers
             headers = {
@@ -214,9 +267,6 @@ class OktaOAuthClient:
                 "Accept": "application/json",
                 "DPoP": initial_proof
             }
-            
-            # Create a minimal client assertion
-            client_assertion = self._create_client_assertion(url)
             
             # Prepare minimal data
             data = {
@@ -237,17 +287,86 @@ class OktaOAuthClient:
             # Check for DPoP-Nonce header (case insensitive)
             for header_name, header_value in response.headers.items():
                 if header_name.lower() == 'dpop-nonce':
+                    # Cache the nonce for future use
+                    cache.set(self.nonce_cache_key, header_value, timeout=3600)
+                    logger.debug(f"Got DPoP nonce from response: {header_value}")
                     return header_value
             
-            # Also check WWW-Authenticate header for nonce
+            # Check error response for nonce information
+            try:
+                error_data = response.json()
+                logger.debug(f"Error response content: {error_data}")
+                
+                # Check for use_dpop_nonce error - a specific Okta error indicating nonce is required
+                if error_data.get("error") == "use_dpop_nonce":
+                    # Look for nonce in WWW-Authenticate header
+                    www_auth = response.headers.get("WWW-Authenticate", "")
+                    if "nonce=" in www_auth:
+                        nonce_match = re.search(r'nonce="([^"]+)"', www_auth)
+                        if nonce_match:
+                            nonce = nonce_match.group(1)
+                            # Cache the nonce
+                            cache.set(self.nonce_cache_key, nonce, timeout=3600)
+                            logger.debug(f"Extracted nonce from WWW-Authenticate: {nonce}")
+                            return nonce
+                    
+                    # Sometimes the nonce is in a separate DPoP-Nonce header
+                    dpop_nonce_header = response.headers.get("DPoP-Nonce")
+                    if dpop_nonce_header:
+                        cache.set(self.nonce_cache_key, dpop_nonce_header, timeout=3600)
+                        logger.debug(f"Found nonce in DPoP-Nonce header: {dpop_nonce_header}")
+                        return dpop_nonce_header
+                    
+                    # If still no nonce, look for it in the response body
+                    error_description = error_data.get("error_description", "")
+                    if "nonce" in error_description.lower():
+                        nonce_match = re.search(r'nonce[=:]\s*["\']?([^"\']+)["\']?', error_description, re.IGNORECASE)
+                        if nonce_match:
+                            nonce = nonce_match.group(1)
+                            cache.set(self.nonce_cache_key, nonce, timeout=3600)
+                            logger.debug(f"Extracted nonce from error description: {nonce}")
+                            return nonce
+            except Exception as e:
+                logger.warning(f"Error parsing response JSON: {e}")
+            
+            # Also check WWW-Authenticate header for nonce (if not already checked)
             www_auth = response.headers.get("WWW-Authenticate", "")
-            if "dpop" in www_auth.lower() and "nonce=" in www_auth.lower():
-                import re
+            if "nonce=" in www_auth:
                 nonce_match = re.search(r'nonce="([^"]+)"', www_auth)
                 if nonce_match:
-                    return nonce_match.group(1)
+                    nonce = nonce_match.group(1)
+                    # Cache the nonce
+                    cache.set(self.nonce_cache_key, nonce, timeout=3600)
+                    logger.debug(f"Extracted nonce from WWW-Authenticate: {nonce}")
+                    return nonce
             
-            # No nonce found
+            # As a last resort, try to get the nonce with a separate HEAD request
+            try:
+                head_response = self.session.head(
+                    url,
+                    headers={"Accept": "application/json", "DPoP": initial_proof},
+                    timeout=5
+                )
+                
+                for header_name, header_value in head_response.headers.items():
+                    if header_name.lower() == 'dpop-nonce':
+                        cache.set(self.nonce_cache_key, header_value, timeout=3600)
+                        logger.debug(f"Got DPoP nonce from HEAD request: {header_value}")
+                        return header_value
+                
+                www_auth = head_response.headers.get("WWW-Authenticate", "")
+                if "nonce=" in www_auth:
+                    nonce_match = re.search(r'nonce="([^"]+)"', www_auth)
+                    if nonce_match:
+                        nonce = nonce_match.group(1)
+                        cache.set(self.nonce_cache_key, nonce, timeout=3600)
+                        logger.debug(f"Extracted nonce from HEAD WWW-Authenticate: {nonce}")
+                        return nonce
+            except Exception as head_error:
+                logger.warning(f"Error in HEAD request for nonce: {head_error}")
+            
+            # No nonce found in any of the attempts
+            logger.warning("Failed to obtain DPoP nonce from Okta")
             return None
                 
         except Exception as e:
@@ -305,6 +424,9 @@ class OktaOAuthClient:
             
         Returns:
             Dict containing the access token and other token information
+            
+        Raises:
+            Exception: If the token request fails
         """
         try:
             logger.debug(f"Getting OAuth token using client credentials flow with private_key_jwt and DPoP")
@@ -314,8 +436,8 @@ class OktaOAuthClient:
             dpop_nonce = self._get_dpop_nonce(token_url)
             
             # Step 2: Create DPoP proof with nonce if available
-            dpop_proof = self._create_dpop_proof("POST", token_url, dpop_nonce)
-            
+            dpop_proof = self._create_dpop_proof("POST", token_url, None, dpop_nonce)
+
             # Step 3: Create client assertion for private_key_jwt
             client_assertion = self._create_client_assertion(token_url)
             
@@ -344,10 +466,23 @@ class OktaOAuthClient:
                 timeout=15
             )
             
+            # Check for new nonce in the response headers
+            new_nonce = None
+            for header_name, header_value in response.headers.items():
+                if header_name.lower() == 'dpop-nonce':
+                    new_nonce = header_value
+                    cache.set(self.nonce_cache_key, new_nonce, timeout=3600)
+                    logger.debug(f"Updated cached DPoP nonce from response: {new_nonce}")
+                    break
+            
             # Step 6: Handle response, including retry with new nonce if needed
             if response.status_code == 200:
                 token_data = response.json()
                 logger.info(f"Successfully obtained DPoP token (expires in {token_data.get('expires_in', 'unknown')} seconds)")
+                
+                # Store the DPoP nonce in the token data for future use
+                if new_nonce:
+                    token_data['_dpop_nonce'] = new_nonce
                 
                 # Log the scopes that were granted (may differ from what was requested)
                 granted_scopes = token_data.get('scope', '')
@@ -357,12 +492,11 @@ class OktaOAuthClient:
                 return token_data
             
             # Handle nonce errors - if we received a new nonce, retry
-            if response.status_code in [400, 401] and "DPoP-Nonce" in response.headers:
-                new_nonce = response.headers.get("DPoP-Nonce")
+            if response.status_code in [400, 401] and new_nonce:
                 logger.debug(f"Received new nonce in error response, retrying: {new_nonce}")
                 
                 # Create a new DPoP proof with the new nonce
-                new_dpop_proof = self._create_dpop_proof("POST", token_url, new_nonce)
+                new_dpop_proof = self._create_dpop_proof("POST", token_url, None, new_nonce)
                 headers["DPoP"] = new_dpop_proof
                 
                 # Create a new client assertion (for security best practice)
@@ -377,9 +511,23 @@ class OktaOAuthClient:
                     timeout=15
                 )
                 
+                # Check for another new nonce
+                final_nonce = None
+                for header_name, header_value in retry_response.headers.items():
+                    if header_name.lower() == 'dpop-nonce':
+                        final_nonce = header_value
+                        cache.set(self.nonce_cache_key, final_nonce, timeout=3600)
+                        logger.debug(f"Updated cached DPoP nonce from retry response: {final_nonce}")
+                        break
+                
                 if retry_response.status_code == 200:
                     token_data = retry_response.json()
                     logger.info(f"Successfully obtained DPoP token after retry (expires in {token_data.get('expires_in', 'unknown')} seconds)")
+                    
+                    # Store the final DPoP nonce in the token data for future use
+                    if final_nonce:
+                        token_data['_dpop_nonce'] = final_nonce
+                    
                     return token_data
                 else:
                     # Log the error before raising exception
@@ -407,3 +555,29 @@ class OktaOAuthClient:
         except Exception as e:
             logger.error(f"Error in client credentials flow: {str(e)}")
             raise Exception(f"OAuth token acquisition failed: {str(e)}")
+            
+    def create_api_headers(self, access_token: str, method: str, url: str, nonce: Optional[str] = None) -> Dict[str, str]:
+        """
+        Create headers for Okta API requests with DPoP binding
+        
+        Args:
+            access_token: The DPoP access token
+            method: HTTP method for the request
+            url: Target URL for the request
+            nonce: Optional DPoP nonce
+            
+        Returns:
+            Dict of HTTP headers
+        """
+        # Create DPoP proof with token binding
+        dpop_proof = self._create_dpop_proof(method, url, access_token, nonce)
+        
+        # Create headers
+        headers = {
+            "Authorization": f"DPoP {access_token}",
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+            "DPoP": dpop_proof
+        }
+        
+        return headers

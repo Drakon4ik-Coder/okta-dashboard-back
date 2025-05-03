@@ -4,6 +4,7 @@ from django.conf import settings
 import logging
 from pymongo import MongoClient
 import time
+import sys
 
 logger = logging.getLogger(__name__)
 
@@ -15,6 +16,14 @@ class DatabaseService:
     _client = None
     _last_ping = 0
     _ping_interval = 60  # Check connection every 60 seconds
+    
+    @classmethod
+    def reset_instance(cls):
+        """Reset the singleton instance - helpful for testing environments"""
+        if cls._instance:
+            cls._instance.disconnect()
+        cls._instance = None
+        cls._is_connected = False
 
     def __new__(cls):
         if cls._instance is None:
@@ -28,7 +37,15 @@ class DatabaseService:
     def connect(self):
         """Establish connection to MongoDB with optimized connection pooling"""
         try:
-            mongoengine.disconnect_all()  # Disconnect any existing connections
+            # Force disconnect of all existing connections
+            DatabaseService._is_connected = False
+            self._connection = None
+            if self._client:
+                self._client.close()
+                self._client = None
+            
+            # Explicitly disconnect all mongoengine connections
+            mongoengine.disconnect_all()
             
             # Get MongoDB connection settings
             mongo_host = settings.MONGODB_SETTINGS['host']
@@ -57,17 +74,20 @@ class DatabaseService:
             # Create MongoClient instance with connection pooling
             self._client = MongoClient(mongo_host)
             
-            # Create mongoengine connection
+            # Create mongoengine connection with a unique alias for this session
+            # Use an alias based on timestamp to ensure uniqueness in test environments
+            connection_alias = f"default_{int(time.time())}" if "test" in sys.argv else "default"
+            
             self._connection = mongoengine.connect(
                 host=mongo_host,
-                alias='default'
+                alias=connection_alias
             )
             
             # Test connection
             self._client.admin.command('ping')
             self._last_ping = time.time()
             DatabaseService._is_connected = True
-            logger.info("Successfully connected to MongoDB with optimized connection pool")
+            logger.info(f"Successfully connected to MongoDB with optimized connection pool (alias: {connection_alias})")
         except Exception as e:
             logger.error(f"Failed to connect to MongoDB: {str(e)}")
             DatabaseService._is_connected = False
