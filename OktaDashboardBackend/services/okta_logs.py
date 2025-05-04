@@ -3,19 +3,16 @@ import requests
 import base64
 import time
 import uuid
-import jwt
-import json
-import hashlib
-import os
 import re
-from urllib.parse import urlparse, quote
-from typing import Dict, List, Optional, Any, Tuple
+from urllib.parse import quote
+from typing import Dict, List, Optional
 from datetime import datetime, timedelta
 from django.conf import settings
 from django.core.cache import cache
 from pymongo import MongoClient
 
 from OktaDashboardBackend.services.okta_oauth import OktaOAuthClient
+from OktaDashboardBackend.services.database import DatabaseService
 
 logger = logging.getLogger(__name__)
 
@@ -53,11 +50,11 @@ class OktaLogsClient:
         # MongoDB settings
         self.use_direct_mongodb = use_direct_mongodb
         self.mongo_settings = settings.MONGODB_SETTINGS
-        self.mongo_host = self.mongo_settings.get('host', 'mongodb://localhost:27017/')
         self.db_name = self.mongo_settings.get('db', 'okta_dashboard')
         self.logs_collection_name = 'okta_logs'
         
-        # Direct MongoDB client when needed
+        # Database service or direct client
+        self.db_service = None if use_direct_mongodb else DatabaseService()
         self.mongo_client = None
         
         # Session for connection pooling and performance optimization
@@ -130,26 +127,34 @@ class OktaLogsClient:
     
     def _get_mongodb_collection(self):
         """
-        Get MongoDB collection for logs
+        Get MongoDB collection for logs - either via DatabaseService or direct connection
         
         Returns:
             MongoDB collection
         """
         try:
-            # Disconnect any existing connections first
-            import mongoengine
-            mongoengine.disconnect_all()
-            if self.debug:
-                logger.debug("Disconnected existing MongoDB connections")
+            # Use DatabaseService for MongoDB connection (preferred)
+            if not self.use_direct_mongodb:
+                if self.db_service and self.db_service.is_connected():
+                    return self.db_service.get_collection(self.db_name, self.logs_collection_name)
+                else:
+                    logger.info("DatabaseService not connected, initializing...")
+                    self.db_service = DatabaseService()
+                    return self.db_service.get_collection(self.db_name, self.logs_collection_name)
             
-            # Create direct connection to MongoDB
-            if not self.mongo_client:
-                self.mongo_client = MongoClient(self.mongo_host)
-            
-            logs_collection = self.mongo_client[self.db_name][self.logs_collection_name]
-            logger.debug(f"Successfully connected to MongoDB at {self.mongo_host}")
-            
-            return logs_collection
+            # Direct MongoDB connection (legacy/fallback approach)
+            else:
+                # Get mongodb host from settings
+                mongo_host = self.mongo_settings.get('host', 'mongodb://localhost:27017/')
+                
+                # Create direct connection to MongoDB if needed
+                if not self.mongo_client:
+                    self.mongo_client = MongoClient(mongo_host)
+                    logger.debug(f"Created direct MongoDB connection to {mongo_host}")
+                
+                logs_collection = self.mongo_client[self.db_name][self.logs_collection_name]
+                return logs_collection
+                
         except Exception as e:
             logger.error(f"Error getting MongoDB collection: {str(e)}")
             raise
@@ -416,7 +421,7 @@ class OktaLogsClient:
                     logger.error(f"Failed to access logs API on page {page_count}. Status: {logs_response.status_code}")
                     try:
                         error_details = logs_response.json()
-                        logger.error(f"Error details: {json.dumps(error_details, indent=2)}")
+                        logger.error(f"Error details: {error_details}")
                     except Exception:
                         logger.error(f"Response content: {logs_response.text[:200]}")
                     
@@ -531,7 +536,7 @@ class OktaLogsClient:
         """Close any open connections"""
         if self.mongo_client:
             self.mongo_client.close()
-            logger.debug("MongoDB connection closed")
+            logger.debug("Direct MongoDB connection closed")
         
         if self.session:
             self.session.close()

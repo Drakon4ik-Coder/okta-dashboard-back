@@ -86,26 +86,17 @@ class Command(BaseCommand):
         # Validate that Okta settings are configured
         org_url = settings.OKTA_ORG_URL
         client_id = settings.OKTA_CLIENT_ID
-        token_endpoint = settings.OKTA_TOKEN_ENDPOINT or f"{org_url}/oauth2/v1/token"
         
         # Validate required parameters
-        if not org_url or not client_id or not token_endpoint:
+        if not org_url or not client_id:
             self.stdout.write(self.style.ERROR("ERROR: Missing required Okta configuration."))
             self.stdout.write(self.style.ERROR("Please set OKTA_ORG_URL and OKTA_CLIENT_ID in your settings.py or .env file."))
             return
         
         try:
             # Initialize the OktaLogsClient with the appropriate settings
+            # By default, the client uses DatabaseService for MongoDB storage
             logs_client = OktaLogsClient(use_direct_mongodb=use_direct_mongo, debug=debug)
-            
-            # Create a print function that uses Django's stdout.write
-            def print_func(message, success=False, error=False):
-                if error:
-                    self.stdout.write(self.style.ERROR(message))
-                elif success:
-                    self.stdout.write(self.style.SUCCESS(message))
-                else:
-                    self.stdout.write(message)
             
             # Log our operation
             self.stdout.write(f"Fetching Okta logs with limit {limit} and max pages {max_pages}")
@@ -139,6 +130,8 @@ class Command(BaseCommand):
             
             if dry_run:
                 self.stdout.write(self.style.WARNING("Dry run mode: logs were not stored in MongoDB"))
+            else:
+                self.stdout.write(self.style.SUCCESS(f"Logs stored in MongoDB using {'direct connection' if use_direct_mongo else 'DatabaseService'}"))
             
             # Provide a sample of the first log
             if logs:
