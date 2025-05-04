@@ -2,4 +2,5 @@ from django.http import JsonResponse
 from login_tracking.utils import get_cached_avg_login_time
 
 def avg_login_time_api(request):
-    return JsonResponse(get_cached_avg_login_time())
+    days = int(request.GET.get('days', 1))
+    return JsonResponse(get_cached_avg_login_time(days))

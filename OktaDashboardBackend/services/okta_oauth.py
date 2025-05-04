@@ -36,13 +36,32 @@ class OktaOAuthClient:
             use_registered_keys: Whether to use the registered keys from the keys/ directory
                                  If False, dynamically generate keys (but this won't work with real Okta unless registered)
         """
+        # Store API/Log credentials for accessing Okta APIs
         self.client_id = settings.OKTA_CLIENT_ID
         self.client_secret = settings.OKTA_CLIENT_SECRET
+        self.org_url = settings.OKTA_ORG_URL
+        
+        # Store authorization credentials for user authentication flows
+        self.authorization_client_id = settings.OKTA_AUTHORIZATION_CLIENT_ID
+        self.authorization_client_secret = settings.OKTA_AUTHORIZATION_CLIENT_SECRET
+        self.authorization_org_url = settings.OKTA_AUTHORIZATION_ORG_URL
+        
+        # Store common settings
         self.redirect_uri = settings.OKTA_REDIRECT_URI
+        
+        # Store authentication endpoints (user login)
         self.authorization_endpoint = settings.OKTA_AUTHORIZATION_ENDPOINT
         self.token_endpoint = settings.OKTA_TOKEN_ENDPOINT
         self.userinfo_endpoint = settings.OKTA_USER_INFO_ENDPOINT
-        self.org_url = settings.OKTA_ORG_URL
+        
+        # Store API endpoints (log retrieval)
+        self.api_token_endpoint = settings.OKTA_API_TOKEN_ENDPOINT
+        self.api_logs_endpoint = settings.OKTA_API_LOGS_ENDPOINT
+        self.api_users_endpoint = settings.OKTA_API_USERS_ENDPOINT
+        
+        # Log important configuration details
+        logger.info(f"OktaOAuthClient initialized with auth org: {self.authorization_org_url}")
+        logger.info(f"API org: {self.org_url}")
         
         # Load or generate RSA key pair for DPoP
         self._setup_key_pair(use_registered_keys)
@@ -399,8 +418,10 @@ class OktaOAuthClient:
         try:
             logger.info("Attempting OAuth token request with private_key_jwt and DPoP...")
             
-            # Step 1: Get a DPoP nonce
-            token_url = self.token_endpoint
+            # Step 1: Use API token endpoint for logs fetching
+            token_url = self.api_token_endpoint
+            logger.info(f"Using token endpoint: {token_url}")
+            
             dpop_nonce = self.get_dpop_nonce(token_url)
             
             # Step 2: Create client assertion using private_key_jwt
@@ -549,3 +570,297 @@ class OktaOAuthClient:
         }
         
         return headers
+
+    def get_authorization_url(self, state: str) -> str:
+        """
+        Generate the authorization URL for the Okta OAuth flow.
+        
+        Args:
+            state: A random string for CSRF protection
+            
+        Returns:
+            The complete authorization URL to redirect the user to
+        """
+        # Build the authorization URL with required parameters
+        params = {
+            'client_id': self.authorization_client_id,  # Use authorization client ID
+            'redirect_uri': self.redirect_uri,
+            'response_type': 'code',
+            'state': state,
+            'scope': 'openid profile email'
+        }
+        
+        # Convert params to query string
+        query_string = '&'.join([f"{key}={requests.utils.quote(value)}" for key, value in params.items()])
+        
+        # Use the authorization org URL directly instead of the endpoint
+        auth_endpoint = f"{self.authorization_org_url}/oauth2/v1/authorize"
+        auth_url = f"{auth_endpoint}?{query_string}"
+        
+        logger.debug(f"Generated authorization URL: {auth_url[:50]}...")
+        return auth_url
+
+    def exchange_code_for_tokens(self, code: str) -> Dict:
+        """
+        Exchange the authorization code for access/refresh tokens
+        
+        Args:
+            code: The authorization code received from the authorization server
+            
+        Returns:
+            Dict containing the access token, id_token, refresh_token and other information
+            
+        Raises:
+            Exception: If the token request fails
+        """
+        try:
+            logger.info("Exchanging authorization code for tokens")
+            
+            # Prepare the token request data - explicitly use authorization organization credentials
+            token_data = {
+                'grant_type': 'authorization_code',
+                'code': code,
+                'redirect_uri': self.redirect_uri,
+                'client_id': self.authorization_client_id,  # Explicitly use the authorization client ID
+                'client_secret': self.authorization_client_secret  # Explicitly use the authorization client secret
+            }
+            
+            headers = {
+                'Accept': 'application/json',
+                'Content-Type': 'application/x-www-form-urlencoded'
+            }
+            
+            # Log important details for debugging
+            logger.debug(f"Token exchange details - Client ID: {self.authorization_client_id}, Endpoint: {self.token_endpoint}")
+            logger.debug(f"Authorization org URL: {self.authorization_org_url}")
+            logger.debug(f"Redirect URI: {self.redirect_uri}")
+            
+            # Make the token request to the authorization org URL token endpoint
+            token_endpoint = f"{self.authorization_org_url}/oauth2/v1/token"
+            logger.debug(f"Making token request to {token_endpoint}")
+            token_response = self.session.post(
+                token_endpoint,
+                headers=headers,
+                data=token_data,
+                timeout=15
+            )
+            
+            logger.debug(f"Token exchange response status: {token_response.status_code}")
+            logger.debug(f"Token exchange response headers: {dict(token_response.headers)}")
+            
+            # Check if the request was successful
+            if token_response.status_code == 200:
+                # Parse the token response
+                token_data = token_response.json()
+                logger.info("Successfully exchanged code for tokens")
+                
+                # Log token information (but not the full tokens)
+                access_token = token_data.get('access_token', '')
+                id_token = token_data.get('id_token', '')
+                refresh_token = token_data.get('refresh_token', '')
+                
+                logger.debug(f"Received access token (length: {len(access_token)})")
+                if id_token:
+                    logger.debug(f"Received ID token (length: {len(id_token)})")
+                if refresh_token:
+                    logger.debug(f"Received refresh token (length: {len(refresh_token)})")
+                
+                return token_data
+            else:
+                # Handle error response
+                error_text = token_response.text[:500]
+                logger.debug(f"Error response text: {error_text}")
+                
+                # Extract error details from JSON if possible
+                error_msg = f"Status code: {token_response.status_code}"
+                try:
+                    error_json = token_response.json()
+                    error = error_json.get('error')
+                    error_description = error_json.get('error_description')
+                    
+                    if error and error_description:
+                        error_msg = f"{error}: {error_description}"
+                    elif error:
+                        error_msg = f"{error}"
+                    elif error_description:
+                        error_msg = f"{error_description}"
+                    else:
+                        # If no structured error info is available, use the raw text
+                        error_msg = error_text if error_text else f"HTTP {token_response.status_code}"
+                except Exception as json_error:
+                    logger.warning(f"Could not parse error response as JSON: {json_error}")
+                    # Use the raw response text as the error message
+                    error_msg = error_text if error_text else f"HTTP {token_response.status_code}"
+                
+                logger.error(f"Token exchange failed: {error_msg}")
+                raise Exception(f"Failed to exchange code for tokens: {error_msg}")
+        
+        except requests.exceptions.RequestException as req_ex:
+            # Handle network/request errors specifically
+            logger.error(f"Network error during token exchange: {str(req_ex)}")
+            raise Exception(f"Network error during token exchange: {str(req_ex)}")
+        except Exception as e:
+            logger.error(f"Error exchanging code for tokens: {str(e)}")
+            raise Exception(f"Code exchange failed: {str(e)}")
+    
+    def get_user_info(self, access_token: str, token_type: str = "Bearer", id_token: Optional[str] = None) -> Dict:
+        """
+        Get user information from Okta userinfo endpoint using the access token
+        
+        Args:
+            access_token: The OAuth access token
+            token_type: The token type (Bearer or DPoP)
+            id_token: Optional ID token for fallback extraction
+            
+        Returns:
+            Dict containing user information
+            
+        Raises:
+            Exception: If the user info request fails
+        """
+        try:
+            logger.info("Getting user info from Okta")
+            
+            headers = {
+                "Authorization": f"{token_type} {access_token}",
+                "Accept": "application/json"
+            }
+            
+            # Make the userinfo request
+            userinfo_response = self.session.get(
+                self.userinfo_endpoint,
+                headers=headers,
+                timeout=15
+            )
+            
+            logger.debug(f"User info response status: {userinfo_response.status_code}")
+            
+            # Check if the request was successful
+            if userinfo_response.status_code == 200:
+                userinfo_data = userinfo_response.json()
+                logger.info(f"Successfully retrieved user info for subject: {userinfo_data.get('sub', 'unknown')}")
+                return userinfo_data
+            else:
+                # If we have an ID token, try to extract user info from it as fallback
+                if id_token:
+                    logger.warning("User info request failed, trying to extract from ID token")
+                    return self._parse_id_token(id_token)
+                    
+                # Handle error response
+                error_text = userinfo_response.text[:200]
+                try:
+                    error_json = userinfo_response.json()
+                    error_msg = error_json.get('error_description') or error_json.get('error') or error_text
+                except:
+                    error_msg = error_text
+                
+                logger.error(f"User info request failed: {error_msg}")
+                raise Exception(f"Failed to get user info: {error_msg}")
+        
+        except Exception as e:
+            if id_token:
+                logger.warning(f"User info request failed: {str(e)}, trying ID token")
+                return self._parse_id_token(id_token)
+            else:
+                logger.error(f"Error getting user info: {str(e)}")
+                raise Exception(f"User info request failed: {str(e)}")
+    
+    def _parse_id_token(self, id_token: str) -> Dict:
+        """
+        Parse and validate the ID token to extract user information
+        
+        Args:
+            id_token: The ID token string
+            
+        Returns:
+            Dict containing user claims from the ID token
+            
+        Raises:
+            Exception: If parsing fails
+        """
+        try:
+            # Decode the token without verification (we're just extracting claims)
+            # In a production environment, you should verify the signature
+            decoded = jwt.decode(
+                id_token,
+                options={"verify_signature": False}
+            )
+            
+            logger.info(f"Successfully extracted user info from ID token for subject: {decoded.get('sub', 'unknown')}")
+            return decoded
+            
+        except Exception as e:
+            logger.error(f"Error parsing ID token: {str(e)}")
+            raise Exception(f"Failed to parse ID token: {str(e)}")
+            
+    def refresh_access_token(self, refresh_token: str) -> Dict:
+        """
+        Refresh the access token using a refresh token
+        
+        Args:
+            refresh_token: The refresh token
+            
+        Returns:
+            Dict containing the new tokens
+            
+        Raises:
+            Exception: If the token refresh fails
+        """
+        try:
+            logger.info("Refreshing access token")
+            
+            # Prepare the token refresh request
+            refresh_data = {
+                'grant_type': 'refresh_token',
+                'refresh_token': refresh_token,
+                'client_id': self.authorization_client_id,
+                'client_secret': self.authorization_client_secret
+            }
+            
+            headers = {
+                'Accept': 'application/json',
+                'Content-Type': 'application/x-www-form-urlencoded'
+            }
+            
+            # Make the refresh token request
+            refresh_response = self.session.post(
+                self.token_endpoint,
+                headers=headers,
+                data=refresh_data,
+                timeout=15
+            )
+            
+            logger.debug(f"Token refresh response status: {refresh_response.status_code}")
+            
+            # Check if the request was successful
+            if refresh_response.status_code == 200:
+                token_data = refresh_response.json()
+                logger.info("Successfully refreshed access token")
+                
+                # Log token information (but not the full tokens)
+                access_token = token_data.get('access_token', '')
+                id_token = token_data.get('id_token', '')
+                new_refresh_token = token_data.get('refresh_token', '')
+                
+                logger.debug(f"Received new access token (length: {len(access_token)})")
+                if id_token:
+                    logger.debug(f"Received new ID token (length: {len(id_token)})")
+                if new_refresh_token:
+                    logger.debug("Received new refresh token (refresh token rotation)")
+                
+                return token_data
+            else:
+                # Handle error response
+                error_text = refresh_response.text[:200]
+                try:
+                    error_json = refresh_response.json()
+                    error_msg = f"{error_json.get('error')}: {error_json.get('error_description')}"
+                except:
+                    error_msg = error_text
+                
+                logger.error(f"Token refresh failed: {error_msg}")
+                raise Exception(f"Failed to refresh token: {error_msg}")
+        
+        except Exception as e:
+            logger.error(f"Error refreshing token: {str(e)}")
+            raise Exception(f"Token refresh failed: {str(e)}")

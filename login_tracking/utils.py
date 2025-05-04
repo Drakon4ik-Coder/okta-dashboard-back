@@ -4,6 +4,7 @@ import time
 from datetime import datetime, timedelta
 from django.core.cache import cache
 from django.conf import settings
+from OktaDashboardBackend.services.database import DatabaseService
 
 # Use Django settings or default fallback
 LOG_FILE_PATH = getattr(settings, 'LOGIN_TIME_LOG_PATH', os.getenv('LOGIN_TIME_LOG_PATH', 'logs/django.log'))
@@ -11,6 +12,7 @@ LOG_FILE_PATH = getattr(settings, 'LOGIN_TIME_LOG_PATH', os.getenv('LOGIN_TIME_L
 # Cache keys
 AVG_LOGIN_TIME_CACHE_KEY = 'avg_login_time'
 PREVIOUS_AVG_LOGIN_TIME_CACHE_KEY = 'previous_avg_login_time'
+TOTAL_LOGIN_EVENTS_CACHE_KEY = 'total_login_events'
 
 def parse_login_times_from_log(days: int = 1):
     """Parse authenticationElapsedTime values from the log file within the last `days`."""
@@ -20,7 +22,8 @@ def parse_login_times_from_log(days: int = 1):
     times = []
 
     try:
-        with open(LOG_FILE_PATH, 'r', encoding='utf-8') as f:
+        # Using 'errors="replace"' to handle encoding issues by replacing invalid characters
+        with open(LOG_FILE_PATH, 'r', encoding='utf-8', errors='replace') as f:
             for line in f:
                 timestamp_match = timestamp_pattern.search(line)
                 if timestamp_match:
@@ -40,6 +43,13 @@ def parse_login_times_from_log(days: int = 1):
                     except ValueError:
                         continue  # Skip if value isn't a proper float
     except FileNotFoundError:
+        # If log file doesn't exist, return empty list
+        return []
+    except Exception as e:
+        # Log other errors but continue with empty list
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error reading login times from log: {str(e)}")
         return []
 
     return times
@@ -72,8 +82,13 @@ def get_cached_avg_login_time(days: int = 1):
     data = cache.get(AVG_LOGIN_TIME_CACHE_KEY)
     if data is None:
         avg = calculate_and_cache_avg_login_time(days)
-        return {'avg_ms': avg, 'timestamp': int(time.time()), 'trend_value': 0}
+        # Return 0 instead of None for avg_ms to ensure JavaScript can process it
+        return {'avg_ms': 0 if avg is None else avg, 'timestamp': int(time.time()), 'trend_value': 0}
 
+    # Ensure avg_ms is not None before calculating trend
+    if data.get('avg_ms') is None:
+        data['avg_ms'] = 0
+        
     prev = cache.get(PREVIOUS_AVG_LOGIN_TIME_CACHE_KEY)
     trend = 0
     if prev:
@@ -83,3 +98,49 @@ def get_cached_avg_login_time(days: int = 1):
             trend = 0
     data['trend_value'] = round(trend, 2)
     return data
+
+def calculate_total_login_events(days: int = 30) -> int:
+    """
+    Calculate the total number of login events (user.session.start) from MongoDB
+    for the specified number of days.
+    
+    Args:
+        days: Number of days to look back (default: 30)
+        
+    Returns:
+        Total count of login events
+    """
+    try:
+        # Check cache first to avoid frequent database queries
+        cache_key = f"{TOTAL_LOGIN_EVENTS_CACHE_KEY}_{days}"
+        cached_data = cache.get(cache_key)
+        if cached_data is not None:
+            return cached_data
+        
+        # Get MongoDB collection
+        db_service = DatabaseService()
+        db_name = settings.MONGODB_SETTINGS.get('db', 'okta_dashboard')
+        logs_collection = db_service.get_collection(db_name, 'okta_logs')
+        
+        # Calculate the date threshold
+        date_threshold = datetime.utcnow() - timedelta(days=days)
+        
+        # Create the query filter
+        query_filter = {
+            'eventType': 'user.session.start',
+            'published': {'$gte': date_threshold.isoformat() + 'Z'}
+        }
+        
+        # Count documents matching the filter
+        total_count = logs_collection.count_documents(query_filter)
+        
+        # Cache the result for 1 hour (3600 seconds)
+        cache.set(cache_key, total_count, timeout=3600)
+        
+        return total_count
+    except Exception as e:
+        # Log the error but don't crash
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error calculating total login events: {str(e)}")
+        return 0

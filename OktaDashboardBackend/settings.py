@@ -33,18 +33,32 @@ SECRET_KEY = get_secret_from_file("/run/secrets/django_secret_key",
 DEBUG = env.bool("DEBUG", default=False)
 ALLOWED_HOSTS = env.list("DJANGO_ALLOWED_HOSTS", default=["localhost", "127.0.0.1", "web"])
 
-# Okta Credentials
+# Okta Credentials - For Logs and API Access 
 OKTA_API_TOKEN = env("OKTA_API_TOKEN", default=None)
 OKTA_ORG_URL = env("OKTA_ORG_URL", default=None)
 OKTA_CLIENT_ID = env("OKTA_CLIENT_ID", default=None)
 OKTA_CLIENT_SECRET = env("OKTA_CLIENT_SECRET", default=None)
 
-# Okta Settings
-OKTA_AUTHORIZATION_ENDPOINT = f"{OKTA_ORG_URL}/oauth2/v1/authorize" if OKTA_ORG_URL else None
-OKTA_TOKEN_ENDPOINT = env("OKTA_TOKEN_ENDPOINT", default=f"{OKTA_ORG_URL}/oauth2/v1/token" if OKTA_ORG_URL else None)
+# Okta Authorization Credentials - For User Authentication
+OKTA_AUTHORIZATION_ORG_URL = env("OKTA_AUTHORIZATION_ORG_URL", default=None)
+OKTA_AUTHORIZATION_CLIENT_ID = env("OKTA_AUTHORIZATION_CLIENT_ID", default=None)
+OKTA_AUTHORIZATION_CLIENT_SECRET = env("OKTA_AUTHORIZATION_CLIENT_SECRET", default=None)
+
+# Okta Authentication Settings 
+OKTA_AUTHORIZATION_ENDPOINT = env("OKTA_AUTHORIZATION_ENDPOINT", 
+                               default=f"{OKTA_AUTHORIZATION_ORG_URL}/oauth2/v1/authorize" if OKTA_AUTHORIZATION_ORG_URL else None)
+OKTA_TOKEN_ENDPOINT = env("OKTA_TOKEN_ENDPOINT", 
+                       default=f"{OKTA_AUTHORIZATION_ORG_URL}/oauth2/v1/token" if OKTA_AUTHORIZATION_ORG_URL else None)
 OKTA_REDIRECT_URI = env("OKTA_REDIRECT_URI", default="http://127.0.0.1:8000/okta/callback")
-OKTA_USER_INFO_ENDPOINT = f"{OKTA_ORG_URL}/oauth2/v1/userinfo" if OKTA_ORG_URL else None
+OKTA_USER_INFO_ENDPOINT = env("OKTA_USER_INFO_ENDPOINT", 
+                           default=f"{OKTA_AUTHORIZATION_ORG_URL}/oauth2/v1/userinfo" if OKTA_AUTHORIZATION_ORG_URL else None)
 OKTA_SCOPES = env("OKTA_SCOPES", default="openid profile email okta.users.read okta.logs.read okta.apps.read")
+
+# Okta API Endpoints - For Logs and User Management (Organization 18924909)
+OKTA_API_TOKEN_ENDPOINT = env("OKTA_API_TOKEN_ENDPOINT", default=f"{OKTA_ORG_URL}/oauth2/v1/token" if OKTA_ORG_URL else None)
+OKTA_API_LOGS_ENDPOINT = env("OKTA_API_LOGS_ENDPOINT", default=f"{OKTA_ORG_URL}/api/v1/logs" if OKTA_ORG_URL else None)
+OKTA_API_USERS_ENDPOINT = env("OKTA_API_USERS_ENDPOINT", default=f"{OKTA_ORG_URL}/api/v1/users" if OKTA_ORG_URL else None)
+OKTA_INTROSPECTION_ENDPOINT = env("OKTA_INTROSPECTION_ENDPOINT", default=f"{OKTA_ORG_URL}/oauth2/v1/introspect" if OKTA_ORG_URL else None)
 
 # Zero Trust Authentication Settings
 TOKEN_REVALIDATION_INTERVAL = 300  # Validate tokens every 5 minutes

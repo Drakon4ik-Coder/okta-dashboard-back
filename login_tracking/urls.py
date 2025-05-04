@@ -7,4 +7,5 @@ urlpatterns = [
     path('api/login-timing/avg/cached/', avg_login_time_api),
     path('api/v1/metrics/okta_login_time/', api_views.okta_login_time, name='okta_login_time'),
     path('api/v1/metrics/okta_login_time/cached/', api_views.cached_okta_login_time, name='cached_okta_login_time'),
+    path('api/v1/metrics/total_login_events/', api_views.total_login_events, name='total_login_events'),
 ]
