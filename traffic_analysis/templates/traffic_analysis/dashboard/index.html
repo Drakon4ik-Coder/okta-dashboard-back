@@ -609,10 +609,10 @@
                 })
                 .then(data => {
                     // Update the average login time display
-                    document.getElementById('avg-login-time').textContent = data.avg_login_ms.toFixed(2) + ' ms';
+                    document.getElementById('avg-login-time').textContent = data.avg_ms.toFixed(2) + ' ms';
                     
                     // Format and display the last updated time
-                    const lastUpdateDate = new Date(data.last_updated * 1000);
+                    const lastUpdateDate = new Date(data.timestamp);
                     const hours = String(lastUpdateDate.getHours()).padStart(2, '0');
                     const minutes = String(lastUpdateDate.getMinutes()).padStart(2, '0');
                     document.getElementById('login-time-updated').textContent = 

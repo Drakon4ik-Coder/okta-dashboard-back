@@ -2,11 +2,10 @@ from django.urls import path
 from . import views
 
 urlpatterns = [
-    # Use the direct login as the main login page
-    path('', views.login_view, name='login'),
-    
-    # Keep the Okta OAuth options available but with different paths
-    path('okta/', views.okta_login_view, name='okta_login'),
-    path('callback/', views.oauth_callback, name='okta_callback'),
-    path('refresh/', views.refresh_token_view, name='refresh_token'),
+    path('login/', views.login_view, name='login'),
+    path('okta/login/', views.okta_login_view, name='okta_login'),
+    path('okta/callback/', views.oauth_callback, name='okta_callback'),
+    path('logout/', views.logout_view, name='logout'),
+    path('refresh-token/', views.refresh_token_view, name='refresh_token'),
+    path('api/login/', views.api_login, name='api_login'),
 ]

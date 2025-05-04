@@ -10,6 +10,9 @@ from mongoengine import connect
 # Base directory
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+# Path to the log file used for login time tracking
+LOGIN_TIME_LOG_PATH = BASE_DIR / 'logs/django.log'
+
 # Load environment variables
 env = environ.Env()
 environ.Env.read_env(os.path.join(BASE_DIR, ".env"))
@@ -30,21 +33,32 @@ SECRET_KEY = get_secret_from_file("/run/secrets/django_secret_key",
 DEBUG = env.bool("DEBUG", default=False)
 ALLOWED_HOSTS = env.list("DJANGO_ALLOWED_HOSTS", default=["localhost", "127.0.0.1", "web"])
 
-# Okta Credentials
+# Okta Credentials - For Logs and API Access 
 OKTA_API_TOKEN = env("OKTA_API_TOKEN", default=None)
 OKTA_ORG_URL = env("OKTA_ORG_URL", default=None)
 OKTA_CLIENT_ID = env("OKTA_CLIENT_ID", default=None)
 OKTA_CLIENT_SECRET = env("OKTA_CLIENT_SECRET", default=None)
 
-# Okta Settings
+# Okta Authorization Credentials - For User Authentication
+OKTA_AUTHORIZATION_ORG_URL = env("OKTA_AUTHORIZATION_ORG_URL", default=None)
+OKTA_AUTHORIZATION_CLIENT_ID = env("OKTA_AUTHORIZATION_CLIENT_ID", default=None)
+OKTA_AUTHORIZATION_CLIENT_SECRET = env("OKTA_AUTHORIZATION_CLIENT_SECRET", default=None)
+
+# Okta Authentication Settings 
 OKTA_AUTHORIZATION_ENDPOINT = env("OKTA_AUTHORIZATION_ENDPOINT", 
-                               default=f"{OKTA_ORG_URL}/oauth2/v1/authorize" if OKTA_ORG_URL else None)
+                               default=f"{OKTA_AUTHORIZATION_ORG_URL}/oauth2/v1/authorize" if OKTA_AUTHORIZATION_ORG_URL else None)
 OKTA_TOKEN_ENDPOINT = env("OKTA_TOKEN_ENDPOINT", 
-                         default=f"{OKTA_ORG_URL}/oauth2/v1/token" if OKTA_ORG_URL else None)
+                       default=f"{OKTA_AUTHORIZATION_ORG_URL}/oauth2/v1/token" if OKTA_AUTHORIZATION_ORG_URL else None)
 OKTA_REDIRECT_URI = env("OKTA_REDIRECT_URI", default="http://127.0.0.1:8000/okta/callback")
 OKTA_USER_INFO_ENDPOINT = env("OKTA_USER_INFO_ENDPOINT", 
-                             default=f"{OKTA_ORG_URL}/oauth2/v1/userinfo" if OKTA_ORG_URL else None)
+                           default=f"{OKTA_AUTHORIZATION_ORG_URL}/oauth2/v1/userinfo" if OKTA_AUTHORIZATION_ORG_URL else None)
 OKTA_SCOPES = env("OKTA_SCOPES", default="openid profile email okta.users.read okta.logs.read okta.apps.read")
+
+# Okta API Endpoints - For Logs and User Management (Organization 18924909)
+OKTA_API_TOKEN_ENDPOINT = env("OKTA_API_TOKEN_ENDPOINT", default=f"{OKTA_ORG_URL}/oauth2/v1/token" if OKTA_ORG_URL else None)
+OKTA_API_LOGS_ENDPOINT = env("OKTA_API_LOGS_ENDPOINT", default=f"{OKTA_ORG_URL}/api/v1/logs" if OKTA_ORG_URL else None)
+OKTA_API_USERS_ENDPOINT = env("OKTA_API_USERS_ENDPOINT", default=f"{OKTA_ORG_URL}/api/v1/users" if OKTA_ORG_URL else None)
+OKTA_INTROSPECTION_ENDPOINT = env("OKTA_INTROSPECTION_ENDPOINT", default=f"{OKTA_ORG_URL}/oauth2/v1/introspect" if OKTA_ORG_URL else None)
 
 # Zero Trust Authentication Settings
 TOKEN_REVALIDATION_INTERVAL = 300  # Validate tokens every 5 minutes
@@ -90,6 +104,7 @@ INSTALLED_APPS = [
 	# Custom apps
 	'rest_framework',
 	'authentication',  # Add the new authentication app
+	'okta_auth.apps.OktaAuthConfig',  # Add the Okta authentication app
 	
 	# Performance optimizations
 	'django_prometheus',
@@ -192,9 +207,6 @@ MIDDLEWARE = [
 	
 	# Metrics middleware last
 	"django_prometheus.middleware.PrometheusAfterMiddleware",
-	'django.contrib.auth.middleware.AuthenticationMiddleware',
-	'login_tracking.middleware.LoginTimingMiddleware',
-	'django_prometheus.middleware.PrometheusAfterMiddleware',
 ]
 
 # Root URL configuration
@@ -219,26 +231,32 @@ MONGODB_SETTINGS = {
 	"waitQueueTimeoutMS": env.int("MONGO_WAIT_QUEUE_TIMEOUT_MS", default=5000),
 }
 
-# Establish MongoDB connection
+# Establish MongoDB connection - now using the URL if available
+MONGODB_URL = env("MONGODB_URL", default=None)
+if not MONGODB_URL:
+    # Construct MongoDB URL from individual settings
+    auth_part = f"{MONGODB_SETTINGS['username']}:{MONGODB_SETTINGS['password']}@" if MONGODB_SETTINGS['username'] and MONGODB_SETTINGS['password'] else ""
+    MONGODB_URL = f"mongodb://{auth_part}{MONGODB_SETTINGS['host']}:{MONGODB_SETTINGS['port']}/{MONGODB_SETTINGS['db']}"
+
+# Try to connect but don't block app startup if MongoDB is not available
 try:
     connect(
-        db=MONGODB_SETTINGS["db"],
-        host=MONGODB_SETTINGS["host"],
-        port=MONGODB_SETTINGS["port"],
-        username=MONGODB_SETTINGS["username"],
-        password=MONGODB_SETTINGS["password"],
-        authentication_source=MONGODB_SETTINGS.get("authentication_source"),
-        maxPoolSize=MONGODB_SETTINGS.get("maxPoolSize"),
-        minPoolSize=MONGODB_SETTINGS.get("minPoolSize"),
+        host=MONGODB_URL,
+        alias='default',
+        serverSelectionTimeoutMS=MONGODB_SETTINGS.get("serverSelectionTimeoutMS"),
         connectTimeoutMS=MONGODB_SETTINGS.get("connectTimeoutMS"),
         socketTimeoutMS=MONGODB_SETTINGS.get("socketTimeoutMS"),
-        serverSelectionTimeoutMS=MONGODB_SETTINGS.get("serverSelectionTimeoutMS"),
-        waitQueueTimeoutMS=MONGODB_SETTINGS.get("waitQueueTimeoutMS"),
+        maxPoolSize=MONGODB_SETTINGS.get("maxPoolSize"),
+        minPoolSize=MONGODB_SETTINGS.get("minPoolSize"),
     )
+    import logging
+    logger = logging.getLogger('django')
+    logger.info("Successfully connected to MongoDB")
 except Exception as e:
     import logging
     logger = logging.getLogger('django')
     logger.warning(f"MongoDB connection failed: {e}")
+    logger.info("Will retry MongoDB connection on first database access")
 
 # Database settings - optimized for production
 DATABASES = {
@@ -299,7 +317,10 @@ USE_TZ = True
 
 # Static and media files - optimized
 STATIC_URL = "/static/"
-STATICFILES_DIRS = [BASE_DIR / "traffic_analysis/static"]  # Updated to use new app path
+STATICFILES_DIRS = [
+    BASE_DIR / "traffic_analysis/static",  # Updated to use new app path
+    BASE_DIR / "okta_auth/static",  # Add the okta_auth static directory
+]
 STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 WHITENOISE_AUTOREFRESH = not DEBUG  # Only refresh in development
 WHITENOISE_USE_FINDERS = DEBUG  # Only in development

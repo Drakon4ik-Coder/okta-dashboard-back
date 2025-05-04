@@ -3,17 +3,12 @@ import requests
 import base64
 import time
 import uuid
-import jwt
-import json
-import hashlib
-import os
 import re
-from urllib.parse import urlparse
-from typing import Dict, List, Optional, Any
+from urllib.parse import quote
+from typing import Dict, List, Optional
 from datetime import datetime, timedelta
 from django.conf import settings
 from django.core.cache import cache
-from cryptography.hazmat.primitives import serialization
 from pymongo import MongoClient
 
 from OktaDashboardBackend.services.okta_oauth import OktaOAuthClient
@@ -31,21 +26,20 @@ class OktaLogsClient:
     3. Automatic token refresh and proper token lifetime management
     4. Specialized error handling for Logs API permission issues
     5. MongoDB storage for retrieved logs
-    
-    NOTE: Based on testing, this implementation focuses on the Regular Logs API
-    which has been confirmed to be working (/api/v1/logs endpoint).
     """
     
-    def __init__(self, use_direct_mongodb=False):
+    def __init__(self, use_direct_mongodb=False, debug=False):
         """
         Initialize the Logs API client
         
         Args:
             use_direct_mongodb: If True, use direct MongoDB connection instead of DatabaseService
+            debug: Enable debug logging
         """
         self.oauth_client = OktaOAuthClient()
         self.org_url = settings.OKTA_ORG_URL
         self.logs_endpoint = f"{self.org_url}/api/v1/logs"
+        self.debug = debug
         
         # Token cache key for this specific client
         self.token_cache_key = "okta_logs_token"
@@ -55,25 +49,16 @@ class OktaLogsClient:
         
         # MongoDB settings
         self.use_direct_mongodb = use_direct_mongodb
-        self.db_name = settings.MONGODB_SETTINGS.get('db', 'okta_dashboard')
+        self.mongo_settings = settings.MONGODB_SETTINGS
+        self.db_name = self.mongo_settings.get('db', 'okta_dashboard')
         self.logs_collection_name = 'okta_logs'
         
-        if not use_direct_mongodb:
-            # Use DatabaseService
-            self.db_service = DatabaseService()
-        else:
-            # Direct MongoDB connection parameters
-            self.mongo_host = settings.MONGODB_SETTINGS.get('host', 'mongodb://localhost:27017/')
-            self.mongo_client = None
+        # Database service or direct client
+        self.db_service = None if use_direct_mongodb else DatabaseService()
+        self.mongo_client = None
         
         # Session for connection pooling and performance optimization
-        self.session = self._create_optimized_session()
-        
-        logger.info(f"OktaLogsClient initialized with logs endpoint: {self.logs_endpoint}")
-    
-    def _create_optimized_session(self) -> requests.Session:
-        """Create and configure an optimized requests session with connection pooling"""
-        session = requests.Session()
+        self.session = requests.Session()
         
         # Configure connection pooling
         adapter = requests.adapters.HTTPAdapter(
@@ -84,10 +69,10 @@ class OktaLogsClient:
         )
         
         # Mount the adapter for both HTTP and HTTPS
-        session.mount("http://", adapter)
-        session.mount("https://", adapter)
+        self.session.mount("http://", adapter)
+        self.session.mount("https://", adapter)
         
-        return session
+        logger.info(f"OktaLogsClient initialized with logs endpoint: {self.logs_endpoint}")
     
     def _get_token(self) -> str:
         """
@@ -140,188 +125,41 @@ class OktaLogsClient:
         
         return access_token
     
-    def _normalize_url_for_dpop(self, method: str, url: str) -> str:
-        """
-        Normalize URL for DPoP proof as per Okta requirements
-        
-        Args:
-            method: HTTP method
-            url: The original URL
-            
-        Returns:
-            Normalized URL for DPoP proof
-        """
-        parsed_url = urlparse(url)
-        
-        # For Okta System Log API, use exactly '/api/v1/logs' as specified in documentation
-        if '/api/v1/logs' in url:
-            return "/api/v1/logs"
-        elif 'oauth2/v1/token' in url:
-            # For token endpoint, use full URL
-            return url
-        else:
-            # For other endpoints, use the full URL
-            return url
-            
-    def _get_dpop_nonce(self, url: str) -> Optional[str]:
-        """
-        Get a DPoP nonce for a specific URL
-        
-        Args:
-            url: The target URL
-            
-        Returns:
-            DPoP nonce if available, None otherwise
-        """
-        # Try to get from cache first
-        cached_nonce = cache.get(self.nonce_cache_key)
-        if cached_nonce:
-            logger.debug(f"Using cached DPoP nonce: {cached_nonce}")
-            return cached_nonce
-            
-        # If not in cache, try to get a new one with a minimal request
-        try:
-            # Create a DPoP proof without nonce
-            token_url = settings.OKTA_TOKEN_ENDPOINT
-            initial_proof = self._create_dpop_proof(
-                "POST", 
-                token_url, 
-                None,  # No access token for this probe request
-                None   # No nonce yet
-            )
-            
-            # Create minimal headers
-            minimal_headers = {
-                "Accept": "application/json",
-                "DPoP": initial_proof
-            }
-            
-            # Make a HEAD request to probe for nonce
-            response = self.session.head(
-                url, 
-                headers=minimal_headers,
-                timeout=10
-            )
-            
-            # Check for DPoP-Nonce header
-            if "DPoP-Nonce" in response.headers:
-                nonce = response.headers.get("DPoP-Nonce")
-                logger.debug(f"Got DPoP nonce from response: {nonce}")
-                
-                # Cache the nonce
-                cache.set(self.nonce_cache_key, nonce, timeout=3600)
-                return nonce
-            
-            # Check WWW-Authenticate header for nonce
-            www_auth = response.headers.get("WWW-Authenticate", "")
-            if "nonce=" in www_auth:
-                nonce_match = re.search(r'nonce="([^"]+)"', www_auth)
-                if nonce_match:
-                    nonce = nonce_match.group(1)
-                    logger.debug(f"Extracted nonce from WWW-Authenticate: {nonce}")
-                    
-                    # Cache the nonce
-                    cache.set(self.nonce_cache_key, nonce, timeout=3600)
-                    return nonce
-            
-            return None
-            
-        except Exception as e:
-            logger.warning(f"Error getting DPoP nonce: {str(e)}")
-            return None
-    
-    def _create_dpop_proof(self, method: str, url: str, access_token: Optional[str] = None, nonce: Optional[str] = None) -> str:
-        """
-        Create a DPoP proof JWT for API requests, with optional token binding
-        
-        Args:
-            method: HTTP method
-            url: Target URL
-            access_token: Optional access token to bind to
-            nonce: Optional nonce from server
-            
-        Returns:
-            DPoP proof JWT string
-        """
-        # Load the private key and JWK from oauth client
-        private_key = self.oauth_client.private_key
-        jwk = self.oauth_client.jwk
-        
-        # Create the private key in PEM format for JWT signing
-        private_key_pem = private_key.private_bytes(
-            encoding=serialization.Encoding.PEM,
-            format=serialization.PrivateFormat.PKCS8,
-            encryption_algorithm=serialization.NoEncryption()
-        )
-        
-        # Normalize the URL for proper DPoP usage
-        normalized_url = self._normalize_url_for_dpop(method, url)
-        
-        # Create DPoP proof JWT
-        now = int(time.time())
-        proof = {
-            "jti": str(uuid.uuid4()),
-            "htm": method,
-            "htu": normalized_url,
-            "iat": now,
-            "exp": now + 60,  # Valid for 1 minute
-        }
-        
-        # Add token binding with 'ath' claim if access token is provided
-        if access_token:
-            # Create hash of the access token for the 'ath' claim
-            access_token_hash = hashlib.sha256(access_token.encode()).digest()
-            # Base64url encode the hash
-            ath = base64.urlsafe_b64encode(access_token_hash).decode('utf-8').rstrip('=')
-            proof["ath"] = ath
-        
-        # Add nonce if provided - CRITICAL for Okta API
-        if nonce:
-            proof["nonce"] = nonce
-            logger.debug(f"Including nonce in DPoP proof: {nonce}")
-        
-        # Create the header with the JWK
-        header = {
-            "typ": "dpop+jwt",
-            "alg": "RS256",
-            "jwk": jwk
-        }
-        
-        # Sign the JWT
-        dpop_proof = jwt.encode(
-            payload=proof,
-            key=private_key_pem,
-            algorithm="RS256",
-            headers=header
-        )
-        
-        return dpop_proof
-        
     def _get_mongodb_collection(self):
         """
-        Get MongoDB collection for logs, either via DatabaseService or direct connection
+        Get MongoDB collection for logs - either via DatabaseService or direct connection
         
         Returns:
             MongoDB collection
         """
-        if not self.use_direct_mongodb:
-            # Use DatabaseService
-            return self.db_service.get_collection(self.db_name, self.logs_collection_name)
-        else:
-            # Direct MongoDB connection
-            if not self.mongo_client:
-                import mongoengine
-                
-                # Disconnect any existing connections first
-                mongoengine.disconnect_all()
-                
-                # Create direct connection
-                self.mongo_client = MongoClient(self.mongo_host)
+        try:
+            # Use DatabaseService for MongoDB connection (preferred)
+            if not self.use_direct_mongodb:
+                if self.db_service and self.db_service.is_connected():
+                    return self.db_service.get_collection(self.db_name, self.logs_collection_name)
+                else:
+                    logger.info("DatabaseService not connected, initializing...")
+                    self.db_service = DatabaseService()
+                    return self.db_service.get_collection(self.db_name, self.logs_collection_name)
             
-            # Return collection
-            return self.mongo_client[self.db_name][self.logs_collection_name]
+            # Direct MongoDB connection (legacy/fallback approach)
+            else:
+                # Get mongodb host from settings
+                mongo_host = self.mongo_settings.get('host', 'mongodb://localhost:27017/')
+                
+                # Create direct connection to MongoDB if needed
+                if not self.mongo_client:
+                    self.mongo_client = MongoClient(mongo_host)
+                    logger.debug(f"Created direct MongoDB connection to {mongo_host}")
+                
+                logs_collection = self.mongo_client[self.db_name][self.logs_collection_name]
+                return logs_collection
+                
+        except Exception as e:
+            logger.error(f"Error getting MongoDB collection: {str(e)}")
+            raise
     
-    def _store_logs_in_mongodb(self, logs_data: List[Dict]) -> bool:
+    def store_logs_in_mongodb(self, logs_data: List[Dict]) -> int:
         """
         Store logs in MongoDB with proper indexing and error handling
         
@@ -329,32 +167,32 @@ class OktaLogsClient:
             logs_data: List of log entries to store
             
         Returns:
-            True if successful, False otherwise
+            Number of logs successfully inserted
         """
         if not logs_data:
             logger.warning("No logs to store in MongoDB")
-            return False
-            
+            return 0
+        
         try:
             # Get MongoDB collection
             logs_collection = self._get_mongodb_collection()
             
-            # Ensure indexes exist for efficient querying
-            # We do this in a try-except block to avoid errors if indexes already exist
+            # Create indexes if they don't exist
             try:
                 logs_collection.create_index("uuid", unique=True)
                 logs_collection.create_index("published")
                 logs_collection.create_index("eventType")
                 logs_collection.create_index([("actor.id", 1), ("published", -1)])
                 logs_collection.create_index([("target.id", 1), ("published", -1)])
-                logs_collection.create_index("outcome.result")
+                if self.debug:
+                    logger.debug("Successfully created MongoDB indexes for logs collection")
             except Exception as e:
-                logger.debug(f"Index creation note: {str(e)}")
+                if self.debug:
+                    logger.debug(f"Note about indexes: {str(e)}")
             
-            # Process each log entry before insertion
-            processed_logs = []
+            # Process the logs for storage
+            # Add import timestamp
             for log in logs_data:
-                # Add import timestamp
                 log['_imported_at'] = datetime.utcnow().isoformat()
                 
                 # Add MongoDB-specific fields for efficient querying
@@ -362,165 +200,344 @@ class OktaLogsClient:
                     try:
                         # Store the published date as ISODate for MongoDB
                         published_date = datetime.fromisoformat(log['published'].replace('Z', '+00:00'))
-                        log['_published_date'] = published_date
+                        log['_published_date'] = published_date.isoformat()
                     except Exception as date_error:
-                        logger.warning(f"Error parsing published date: {date_error}")
-                
-                processed_logs.append(log)
+                        if self.debug:
+                            logger.debug(f"Error parsing published date: {date_error}")
             
-            # Use bulk insert for performance, with ordered=False to continue on duplicate key errors
-            if processed_logs:
-                result = logs_collection.insert_many(processed_logs, ordered=False)
+            inserted_count = 0
+            try:
+                # Use bulk insert with unordered option to continue on duplicate key errors
+                result = logs_collection.insert_many(logs_data, ordered=False)
                 inserted_count = len(result.inserted_ids)
-                logger.info(f"Successfully stored {inserted_count} out of {len(processed_logs)} logs in MongoDB")
-                return True
-            else:
-                return False
+                logger.info(f"Successfully stored {inserted_count} logs in MongoDB")
+            except Exception as e:
+                if "E11000 duplicate key error" in str(e):
+                    # Try to extract count from the error message
+                    match = re.search(r'Inserted (\d+) document', str(e))
+                    if match:
+                        inserted_count = int(match.group(1))
+                        logger.info(f"Partially inserted {inserted_count} logs, some were already in MongoDB (duplicate keys)")
+                    else:
+                        logger.info("Some logs were already in MongoDB (duplicate keys)")
+                else:
+                    logger.error(f"Error during MongoDB insertion: {str(e)}")
+                    raise
+            
+            return inserted_count
                 
         except Exception as e:
-            logger.error(f"Error storing logs in MongoDB: {str(e)}")
-            return False
+            logger.error(f"Error with MongoDB integration: {str(e)}")
+            return 0
     
-    def get_logs(self, params: Optional[Dict] = None, retry_on_error: bool = True, store_in_mongodb: bool = True) -> List[Dict]:
+    def calculate_start_time(self, days: int = 0, hours: int = 0, minutes: int = 15) -> datetime:
         """
-        Get logs from the Okta System Log API and optionally store them in MongoDB
+        Calculate the start time based on provided days, hours, and minutes
         
         Args:
-            params: Optional query parameters for filtering logs
-            retry_on_error: Whether to retry on certain errors (default: True)
-            store_in_mongodb: Whether to store the logs in MongoDB (default: True)
+            days: Number of days to go back
+            hours: Number of hours to go back
+            minutes: Number of minutes to go back
+            
+        Returns:
+            Start time as datetime object
+        """
+        # Calculate total minutes
+        total_minutes = days * 24 * 60 + hours * 60 + minutes
+        if total_minutes <= 0:
+            total_minutes = 15  # Default to 15 minutes
+        
+        end_time = datetime.now()
+        start_time = end_time - timedelta(minutes=total_minutes)
+        
+        logger.info(f"Calculated time range: {total_minutes} minutes ({days} days, {hours} hours, {minutes} minutes)")
+        return start_time
+    
+    def fetch_logs(self, 
+                  since: Optional[datetime] = None, 
+                  days: int = 0, 
+                  hours: int = 0, 
+                  minutes: int = 15,
+                  limit: int = 100, 
+                  filter_query: Optional[str] = None, 
+                  max_pages: int = 10, 
+                  store_in_mongodb: bool = True) -> List[Dict]:
+        """
+        Fetch logs from Okta System Log API with pagination
+        
+        Args:
+            since: Start time as datetime object (if provided, days/hours/minutes are ignored)
+            days: Number of days to go back (if since is not provided)
+            hours: Number of hours to go back (if since is not provided)
+            minutes: Number of minutes to go back (if since is not provided)
+            limit: Maximum number of logs to fetch per request (max 1000)
+            filter_query: Filter query for Okta logs (e.g. "eventType eq \"user.session.start\"")
+            max_pages: Maximum number of pages to fetch (0 for unlimited)
+            store_in_mongodb: Whether to store fetched logs in MongoDB
             
         Returns:
             List of log entries
+        """
+        # Calculate the start time if not provided
+        if since is None:
+            start_time = self.calculate_start_time(days, hours, minutes)
+        else:
+            start_time = since
             
-        Raises:
-            Exception: If the logs API request fails
+        # Format the start time for Okta's since parameter (ISO 8601 with exactly 3 decimal places)
+        since_iso = start_time.strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3] + 'Z'
+        logger.info(f"Fetching Okta logs since {since_iso}")
+        
+        # Get access token
+        access_token = self._get_token()
+        if not access_token:
+            logger.error("Could not obtain access token for Okta Logs API")
+            return []
+        
+        # Build query parameters
+        query_params = {}
+        
+        # Add limit parameter (ensure it doesn't exceed Okta's maximum)
+        query_params["limit"] = min(limit, 1000)
+        
+        # Add since parameter (recommended by Okta API docs)
+        query_params["since"] = since_iso
+        
+        # Add filter if specified
+        if filter_query:
+            query_params["filter"] = filter_query
+        
+        # Get cached nonce if available
+        api_nonce = cache.get(self.nonce_cache_key)
+        
+        # Track pagination
+        page_count = 0
+        total_logs = 0
+        has_more_pages = True
+        next_url = None
+        all_logs = []  # Collect all logs for later insertion
+        
+        # Continue fetching pages until we've reached the max or there are no more
+        while has_more_pages and (max_pages == 0 or page_count < max_pages):
+            page_count += 1
+            logger.info(f"Fetching page {page_count} of logs...")
+            
+            # Use the next URL from Link header if we have one, otherwise use the base URL with params
+            url_to_fetch = next_url if next_url else self.logs_endpoint
+            
+            # For the first page, we need to add query params
+            if page_count == 1:
+                # Build the URL with query parameters
+                params_list = []
+                
+                for key, value in query_params.items():
+                    encoded_value = quote(str(value))
+                    params_list.append(f"{key}={encoded_value}")
+                
+                params_string = "&".join(params_list)
+                url_with_params = f"{url_to_fetch}?{params_string}"
+                
+                if self.debug:
+                    logger.debug(f"First page URL: {url_with_params}")
+            else:
+                # Use the next URL directly
+                url_with_params = url_to_fetch
+                if self.debug:
+                    logger.debug(f"Next page URL: {url_with_params}")
+            
+            # Get DPoP headers for the API request
+            logs_headers = self.oauth_client.create_api_headers(
+                access_token=access_token,
+                method="GET",
+                url=self.logs_endpoint,  # Use base URL for proper DPoP proof
+                nonce=api_nonce
+            )
+            
+            try:
+                # Make the request - use proper approach based on page
+                if page_count == 1:
+                    # For first page, use query parameters
+                    logs_response = self.session.get(
+                        url_with_params,
+                        headers=logs_headers,
+                        timeout=30
+                    )
+                else:
+                    # For pagination, just use the next URL directly
+                    logs_response = self.session.get(
+                        url_with_params,
+                        headers=logs_headers,
+                        timeout=30
+                    )
+                
+                logger.debug(f"Logs API status for page {page_count}: {logs_response.status_code}")
+                
+                if logs_response.status_code == 200:
+                    # Extract logs from response
+                    page_logs = logs_response.json()
+                    page_log_count = len(page_logs)
+                    total_logs += page_log_count
+                    
+                    logger.info(f"Successfully retrieved {page_log_count} logs on page {page_count}")
+                    
+                    # Add logs to our collection
+                    all_logs.extend(page_logs)
+                    
+                    # Check if there are more pages via Link header
+                    link_header = logs_response.headers.get('Link', '')
+                    if self.debug:
+                        logger.debug(f"Link header: {link_header}")
+                    
+                    # Extract next URL if there is one
+                    next_url = None
+                    if link_header:
+                        # Parse the Link header to find the "next" link
+                        links = link_header.split(',')
+                        for link in links:
+                            if 'rel="next"' in link:
+                                url_match = re.search(r'<([^>]+)>', link)
+                                if url_match:
+                                    next_url = url_match.group(1)
+                                    if self.debug:
+                                        logger.debug(f"Found next URL: {next_url}")
+                                    break
+                    
+                    # Set has_more_pages based on whether we found a next URL
+                    has_more_pages = next_url is not None
+                    
+                    # If this page had fewer logs than the limit, we're done
+                    if page_log_count < limit:
+                        has_more_pages = False
+                        if self.debug:
+                            logger.debug("Fewer logs than limit returned, no more pages to fetch")
+                    
+                    # Update the nonce for the next request if needed
+                    if "DPoP-Nonce" in logs_response.headers:
+                        api_nonce = logs_response.headers.get("DPoP-Nonce")
+                        cache.set(self.nonce_cache_key, api_nonce, timeout=3600)
+                        if self.debug:
+                            logger.debug(f"Got new nonce for next page: {api_nonce}")
+                else:
+                    logger.error(f"Failed to access logs API on page {page_count}. Status: {logs_response.status_code}")
+                    try:
+                        error_details = logs_response.json()
+                        logger.error(f"Error details: {error_details}")
+                    except Exception:
+                        logger.error(f"Response content: {logs_response.text[:200]}")
+                    
+                    # Check if we need to refresh the token
+                    if logs_response.status_code == 401:
+                        # Clear token from cache to force refresh
+                        cache.delete(self.token_cache_key)
+                        
+                        # Get a new nonce if available
+                        if "DPoP-Nonce" in logs_response.headers:
+                            new_nonce = logs_response.headers.get("DPoP-Nonce")
+                            cache.set(self.nonce_cache_key, new_nonce, timeout=3600)
+                            logger.info(f"Got new nonce from error response: {new_nonce}")
+                    
+                    # Stop pagination if we encounter an error
+                    has_more_pages = False
+            except Exception as e:
+                logger.error(f"Error accessing logs API on page {page_count}: {str(e)}")
+                has_more_pages = False
+        
+        # Summarize the results
+        logger.info(f"Fetched a total of {total_logs} logs across {page_count} pages")
+        
+        # Store logs in MongoDB if requested
+        if store_in_mongodb and all_logs:
+            logger.info("Storing logs in MongoDB...")
+            inserted_count = self.store_logs_in_mongodb(all_logs)
+            logger.info(f"Operation complete: Stored {inserted_count} of {total_logs} logs in MongoDB")
+        
+        return all_logs
+    
+    def get_logs_since(self, 
+                      iso_timestamp: str, 
+                      limit: int = 100, 
+                      filter_query: Optional[str] = None, 
+                      max_pages: int = 10,
+                      store_in_mongodb: bool = True) -> List[Dict]:
+        """
+        Get logs since a specific ISO 8601 timestamp
+        
+        Args:
+            iso_timestamp: ISO 8601 timestamp string (e.g. "2025-05-01T00:00:00.000Z")
+            limit: Maximum number of logs to fetch per request
+            filter_query: Filter query for Okta logs
+            max_pages: Maximum number of pages to fetch
+            store_in_mongodb: Whether to store fetched logs in MongoDB
+            
+        Returns:
+            List of log entries
         """
         try:
-            # Default parameters if none provided
-            if params is None:
-                params = {"limit": 100}
+            # Parse the provided ISO8601 timestamp
+            start_time = datetime.fromisoformat(iso_timestamp.replace('Z', '+00:00'))
+            logger.info(f"Fetching logs since: {iso_timestamp}")
             
-            # Get an access token
-            access_token = self._get_token()
-            
-            # Get the DPoP nonce if available
-            dpop_nonce = self._get_dpop_nonce(self.logs_endpoint)
-            
-            # Create DPoP proof with token binding
-            # For logs API, use exactly '/api/v1/logs' (not the full URL) for the htu claim
-            dpop_proof = self._create_dpop_proof(
-                "GET", 
-                self.logs_endpoint,
-                access_token,
-                dpop_nonce
+            # Use the main fetch_logs method with the parsed timestamp
+            return self.fetch_logs(
+                since=start_time,
+                limit=limit,
+                filter_query=filter_query,
+                max_pages=max_pages,
+                store_in_mongodb=store_in_mongodb
             )
-            
-            # Set up headers with DPoP proof
-            headers = {
-                "Authorization": f"DPoP {access_token}",
-                "Accept": "application/json",
-                "Content-Type": "application/json",
-                "DPoP": dpop_proof
-            }
-            
-            # Debug information
-            logger.debug(f"Making logs request to {self.logs_endpoint}")
-            logger.debug(f"Query parameters: {params}")
-            
-            # Check if the filter parameter uses proper ISO 8601 format
-            if 'filter' in params and 'published gt' in params['filter']:
-                logger.debug(f"Filter detected: {params['filter']}")
-                
-                # Make sure it's properly formatted for Okta API
-                # Okta's API expects filter=published gt "2025-05-03T01:04:38.075Z"
-                # Note: Make sure the date has a 'Z' suffix and milliseconds end with Z, not microseconds
-                if 'Z"' not in params['filter']:
-                    logger.debug("Fixing timestamp format in filter")
-                    date_pattern = r'"([^"]+)"'
-                    match = re.search(date_pattern, params['filter'])
-                    if match:
-                        original_date = match.group(1)
-                        if '.' in original_date:
-                            # If there are microseconds, truncate to milliseconds and add Z
-                            base_date, fraction = original_date.split('.')
-                            if 'Z' not in fraction:
-                                # Truncate microseconds to 3 digits (milliseconds) and add Z
-                                fixed_date = f"{base_date}.{fraction[:3]}Z"
-                                params['filter'] = params['filter'].replace(original_date, fixed_date)
-                                logger.debug(f"Fixed timestamp in filter: {params['filter']}")
-                        elif 'Z' not in original_date:
-                            # If no fraction, add Z if missing
-                            fixed_date = f"{original_date}Z"
-                            params['filter'] = params['filter'].replace(original_date, fixed_date)
-                            logger.debug(f"Added Z suffix to timestamp: {params['filter']}")
-            
-            # Make the request
-            response = self.session.get(
-                self.logs_endpoint,
-                headers=headers,
-                params=params,
-                timeout=30  # Longer timeout for logs API
-            )
-            
-            # Debug information - get full URL after params are added
-            logger.debug(f"Full request URL: {response.request.url}")
-            logger.debug(f"Response status: {response.status_code}")
-            
-            # Check for new nonce in the response and update cache
-            if "DPoP-Nonce" in response.headers:
-                new_nonce = response.headers.get("DPoP-Nonce")
-                logger.debug(f"Got new DPoP nonce from response: {new_nonce}")
-                cache.set(self.nonce_cache_key, new_nonce, timeout=3600)
-            
-            if response.status_code == 200:
-                logs_data = response.json()
-                logger.info(f"Successfully retrieved {len(logs_data)} logs from {self.logs_endpoint}")
-                
-                # Store logs in MongoDB if requested
-                if store_in_mongodb and logs_data:
-                    self._store_logs_in_mongodb(logs_data)
-                
-                return logs_data
-            elif response.status_code == 401 and "DPoP-Nonce" in response.headers and retry_on_error:
-                # Token or DPoP proof rejected, but we have a new nonce - retry
-                logger.warning("DPoP proof rejected, trying again with new nonce")
-                new_nonce = response.headers.get("DPoP-Nonce")
-                cache.set(self.nonce_cache_key, new_nonce, timeout=3600)
-                
-                # Retry with new nonce
-                return self.get_logs(params, retry_on_error=False, store_in_mongodb=store_in_mongodb)
-                
-            elif response.status_code == 401 and retry_on_error:
-                # Token might be invalid, clear cache and try again with a new token
-                logger.warning("Token rejected, getting a new one and retrying")
-                cache.delete(self.token_cache_key)
-                
-                # Recursive call with retry_on_error=False to prevent infinite recursion
-                return self.get_logs(params, retry_on_error=False, store_in_mongodb=store_in_mongodb)
-            else:
-                # Log the error and response content
-                logger.error(f"Failed to get logs. Status: {response.status_code}")
-                logger.error(f"Response content: {response.text[:500]}")
-                
-                try:
-                    error_data = response.json()
-                    logger.error(f"Error details: {json.dumps(error_data)}")
-                    error_msg = error_data.get("errorSummary", f"Status code: {response.status_code}")
-                except Exception:
-                    error_msg = f"Status code: {response.status_code}, Response: {response.text[:200]}"
-                    
-                # If it's a 400 error, it might be a filter format issue
-                if response.status_code == 400 and 'filter' in params:
-                    logger.warning("Potential issue with filter format. Trying simplified request.")
-                    
-                    # Try a simpler request with just the limit parameter
-                    simpler_params = {"limit": params.get("limit", 100)}
-                    if retry_on_error:
-                        return self.get_logs(simpler_params, retry_on_error=False, store_in_mongodb=store_in_mongodb)
-                
-                raise Exception(f"Failed to get Okta logs: {error_msg}")
-                
         except Exception as e:
-            logger.error(f"Error retrieving logs: {str(e)}")
-            raise Exception(f"Failed to retrieve Okta logs: {str(e)}")
+            logger.error(f"Error parsing ISO timestamp: {e}")
+            # Fall back to default time range
+            logger.warning("Using default time range instead")
+            return self.fetch_logs(
+                days=0, 
+                hours=0, 
+                minutes=15, 
+                limit=limit,
+                filter_query=filter_query,
+                max_pages=max_pages,
+                store_in_mongodb=store_in_mongodb
+            )
+    
+    def get_logs_by_timeframe(self, 
+                             days: int = 0, 
+                             hours: int = 0, 
+                             minutes: int = 15,
+                             limit: int = 100, 
+                             filter_query: Optional[str] = None, 
+                             max_pages: int = 10,
+                             store_in_mongodb: bool = True) -> List[Dict]:
+        """
+        Get logs for a specific timeframe (days, hours, minutes ago)
+        
+        Args:
+            days: Number of days to go back
+            hours: Number of hours to go back
+            minutes: Number of minutes to go back
+            limit: Maximum number of logs to fetch per request
+            filter_query: Filter query for Okta logs
+            max_pages: Maximum number of pages to fetch
+            store_in_mongodb: Whether to store fetched logs in MongoDB
+            
+        Returns:
+            List of log entries
+        """
+        return self.fetch_logs(
+            days=days,
+            hours=hours,
+            minutes=minutes,
+            limit=limit,
+            filter_query=filter_query,
+            max_pages=max_pages,
+            store_in_mongodb=store_in_mongodb
+        )
+    
+    def close(self):
+        """Close any open connections"""
+        if self.mongo_client:
+            self.mongo_client.close()
+            logger.debug("Direct MongoDB connection closed")
+        
+        if self.session:
+            self.session.close()
+            logger.debug("HTTP session closed")

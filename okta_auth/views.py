@@ -11,7 +11,7 @@ from django.contrib.auth import authenticate, login
 from django.contrib.auth.models import User
 from django.http import HttpRequest, HttpResponse, JsonResponse, HttpResponseRedirect
 from django.shortcuts import redirect, render
-from django.views.decorators.csrf import ensure_csrf_cookie
+from django.views.decorators.csrf import ensure_csrf_cookie, csrf_exempt
 from django.views.decorators.http import require_http_methods
 from django.urls import reverse
 from django.core.signing import TimestampSigner, SignatureExpired, BadSignature
@@ -19,12 +19,18 @@ from django.utils.crypto import get_random_string
 from cryptography.fernet import Fernet
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import AllowAny
+from rest_framework.response import Response
+from rest_framework.authtoken.models import Token
 
-from OktaDashboardBackend.services.okta_oauth import OktaOAuthClient
+# Import the new OktaAuthClient instead of OktaOAuthClient
+from okta_auth.services.okta_auth_client import OktaAuthClient
 from okta_auth.services.token_encryption import TokenEncryptor
 
 logger = logging.getLogger(__name__)
-oauth_client = OktaOAuthClient()
+# Initialize the new auth client
+auth_client = OktaAuthClient()
 
 # New direct login view that doesn't use Okta redirect
 @ensure_csrf_cookie
@@ -110,11 +116,11 @@ def okta_login_view(request: HttpRequest) -> HttpResponse:
     request.session['next_url'] = next_url
     
     # Generate authorization URL and redirect user
-    auth_url = oauth_client.get_authorization_url(state)
+    auth_url = auth_client.get_authorization_url(state)
     return redirect(auth_url)
 
-# Original function renamed - replace login_view with direct_login_view as the primary login method
-login_view = direct_login_view
+# Original function renamed - replace login_view with okta_login_view as the primary login method
+login_view = okta_login_view  # Change to redirect to Okta for all logins
 
 @require_http_methods(['GET'])
 def oauth_callback(request: HttpRequest) -> HttpResponse:
@@ -133,19 +139,22 @@ def oauth_callback(request: HttpRequest) -> HttpResponse:
     if not state:
         logger.error("No state parameter received in callback")
         return render(request, 'traffic_analysis/errors.html', {
-            'error': 'Authentication failed: Missing state parameter'
+            'error': 'Authentication failed: Missing state parameter',
+            'title': 'Login Error'
         })
     
     if not stored_state:
         logger.error("No stored state found in session")
         return render(request, 'traffic_analysis/errors.html', {
-            'error': 'Authentication failed: No state found in session (session may have expired)'
+            'error': 'Authentication failed: No state found in session (session may have expired)',
+            'title': 'Login Error'
         })
     
     if state != stored_state:
         logger.error(f"State mismatch: received {state[:5]}..., stored {stored_state[:5]}...")
         return render(request, 'traffic_analysis/errors.html', {
-            'error': 'Authentication failed: Invalid state parameter (state mismatch)'
+            'error': 'Authentication failed: Invalid state parameter (state mismatch)',
+            'title': 'Login Error'
         })
     
     # Clear the state from session
@@ -158,7 +167,8 @@ def oauth_callback(request: HttpRequest) -> HttpResponse:
     if not code:
         logger.error("No code parameter in OAuth callback")
         return render(request, 'traffic_analysis/errors.html', {
-            'error': 'Authentication failed: No authorization code received'
+            'error': 'Authentication failed: No authorization code received',
+            'title': 'Login Error'
         })
     
     # Log code details for diagnostics (without logging the full code)
@@ -168,7 +178,7 @@ def oauth_callback(request: HttpRequest) -> HttpResponse:
     try:
         # Exchange code for tokens
         logger.debug("Attempting to exchange authorization code for tokens")
-        token_response = oauth_client.exchange_code_for_tokens(code)
+        token_response = auth_client.exchange_code_for_tokens(code)
         
         logger.info("Token exchange successful")
         logger.debug(f"Token response contains fields: {', '.join(token_response.keys())}")
@@ -181,7 +191,8 @@ def oauth_callback(request: HttpRequest) -> HttpResponse:
         if not access_token:
             logger.error("No access token received in token response")
             return render(request, 'traffic_analysis/errors.html', {
-                'error': 'Authentication failed: No access token received'
+                'error': 'Authentication failed: No access token received',
+                'title': 'Login Error'
             })
             
         # Try to get user info, first with provided token_type, then with fallbacks
@@ -191,7 +202,7 @@ def oauth_callback(request: HttpRequest) -> HttpResponse:
         # First attempt - use token as provided
         try:
             logger.debug(f"Attempting to get user info with access token (token type: {token_type})")
-            user_info = oauth_client.get_user_info(access_token, token_type, id_token)
+            user_info = auth_client.get_user_info(access_token, token_type, id_token)
             logger.debug(f"User info received for subject: {user_info.get('sub', 'unknown')}")
         except Exception as e:
             error_message = str(e)
@@ -200,7 +211,7 @@ def oauth_callback(request: HttpRequest) -> HttpResponse:
             # Second attempt - try with explicit Bearer type
             try:
                 logger.debug("Retrying user info with explicit Bearer token")
-                user_info = oauth_client.get_user_info(access_token, "Bearer", id_token)
+                user_info = auth_client.get_user_info(access_token, "Bearer", id_token)
                 logger.debug(f"User info received with Bearer token for subject: {user_info.get('sub', 'unknown')}")
             except Exception as e2:
                 logger.error(f"All user info attempts failed. Original error: {error_message}, Bearer error: {str(e2)}")
@@ -209,16 +220,18 @@ def oauth_callback(request: HttpRequest) -> HttpResponse:
                 if id_token:
                     try:
                         logger.debug("Attempting to extract user info directly from ID token")
-                        user_info = oauth_client._parse_id_token(id_token)
+                        user_info = auth_client._parse_id_token(id_token)
                         logger.info(f"Successfully extracted user info from ID token for subject: {user_info.get('sub', 'unknown')}")
                     except Exception as e3:
                         logger.error(f"All user info retrieval methods failed including ID token parsing: {str(e3)}")
                         return render(request, 'traffic_analysis/errors.html', {
-                            'error': f'Authentication failed: Could not retrieve user information. Please contact support.'
+                            'error': 'Authentication failed: Could not retrieve user information. Please contact support.',
+                            'title': 'Login Error'
                         })
                 else:
                     return render(request, 'traffic_analysis/errors.html', {
-                        'error': f'Authentication failed: Could not retrieve user information and no ID token available. Please contact support.'
+                        'error': 'Authentication failed: Could not retrieve user information and no ID token available. Please contact support.',
+                        'title': 'Login Error'
                     })
         
         # Get or create a user in Django
@@ -314,7 +327,7 @@ def oauth_callback(request: HttpRequest) -> HttpResponse:
                 f"(trend: {avg_login_data.get('trend_value', 0)}%)"
             )
 
-    # Securely store tokens - encrypt with user-specific key
+        # Securely store tokens - encrypt with user-specific key
         # This isolates tokens per user and session
         if access_token:
             request.session['access_token'] = TokenEncryptor.encrypt_token(access_token, str(user.id))
@@ -332,12 +345,9 @@ def oauth_callback(request: HttpRequest) -> HttpResponse:
         if 'expires_in' in token_response:
             request.session['token_expires_at'] = int(time.time()) + int(token_response.get('expires_in', 3600))
 
-        # Redirect to the next URL or dashboard
-        next_url = request.session.get('next_url', '/dashboard')
-        if 'next_url' in request.session:
-            del request.session['next_url']
-            
-        return redirect(next_url)
+        # Always redirect to /dashboard after successful login
+        # Use HttpResponseRedirect instead of redirect for a cleaner URL change without showing the callback URL
+        return HttpResponseRedirect('/dashboard')
         
     except Exception as e:
         # Log the error and determine the type of error
@@ -369,7 +379,10 @@ def oauth_callback(request: HttpRequest) -> HttpResponse:
             )
         
         return render(request, 'traffic_analysis/errors.html', {
-            'error': f'Authentication failed: {error_msg}{debug_info}'
+            'error': f'Authentication failed: {error_msg}',
+            'title': 'Login Error',
+            'details': error_details,
+            'debug_info': debug_info
         })
 
 
@@ -407,7 +420,7 @@ def refresh_token_view(request: HttpRequest) -> JsonResponse:
         refresh_token = TokenEncryptor.decrypt_token(encrypted_refresh_token, user_id)
         
         # Use the client to refresh the token
-        token_response = oauth_client.refresh_access_token(refresh_token)
+        token_response = auth_client.refresh_access_token(refresh_token)
         
         # Encrypt and store the new tokens
         new_access_token = token_response.get('access_token')
@@ -488,3 +501,46 @@ def logout_view(request: HttpRequest) -> HttpResponse:
     
     # Redirect to home directory instead of login page
     return redirect('/')
+
+@csrf_exempt
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def api_login(request):
+    """
+    API login endpoint that doesn't require CSRF token.
+    This endpoint should only be used by API clients like Postman.
+    It returns an authentication token that can be used for subsequent API requests.
+    """
+    data = {}
+    if request.data:
+        username = request.data.get('username')
+        password = request.data.get('password')
+    else:
+        username = request.POST.get('username')
+        password = request.POST.get('password')
+        
+    if not username or not password:
+        return Response({'error': 'Please provide both username and password'}, status=400)
+        
+    user = authenticate(username=username, password=password)
+    
+    if user is not None:
+        login(request, user)
+        
+        # For API access, also provide a token if using token authentication
+        try:
+            token, created = Token.objects.get_or_create(user=user)
+            data['token'] = token.key
+        except:
+            # Token authentication might not be set up
+            pass
+            
+        return Response({
+            'success': 'Authentication successful',
+            'username': user.username,
+            'is_admin': user.is_staff,
+            'session_id': request.session.session_key,
+            **data
+        })
+    else:
+        return Response({'error': 'Invalid credentials'}, status=401)
