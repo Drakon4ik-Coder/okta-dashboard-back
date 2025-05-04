@@ -99,12 +99,12 @@
         </div>
         
         <!-- Time filter -->
-        <div class="time-filter mb-4">
-            <div class="time-filter-item active">Last 7 Days</div>
-            <div class="time-filter-item">Last 14 Days</div>
-            <div class="time-filter-item">Last 30 Days</div>
-            <div class="time-filter-item">Last 90 Days</div>
-            <div class="time-filter-item">Custom Range</div>
+        <div class="filters mb-4">
+            <button class="filter-btn active" data-period="7d">Last 7 Days</button>
+            <button class="filter-btn" data-period="14d">Last 14 Days</button>
+            <button class="filter-btn" data-period="30d">Last 30 Days</button>
+            <button class="filter-btn" data-period="90d">Last 90 Days</button>
+            <button class="filter-btn" data-period="custom">Custom Range</button>
         </div>
 
         <!-- Stats Overview -->
@@ -217,71 +217,51 @@
                                 <div class="metric-chart-container">
                                     <canvas id="deviceChart"></canvas>
                                 </div>
-                                <div class="chart-legend">
-                                    <div class="legend-item">
-                                        <div class="legend-color" style="background-color: var(--blue-1);"></div>
-                                        <span>Desktop (58.4%)</span>
-                                    </div>
-                                    <div class="legend-item">
-                                        <div class="legend-color" style="background-color: var(--green-2);"></div>
-                                        <span>Mobile (32.1%)</span>
-                                    </div>
-                                    <div class="legend-item">
-                                        <div class="legend-color" style="background-color: var(--yellow-1);"></div>
-                                        <span>Tablet (5.7%)</span>
-                                    </div>
-                                    <div class="legend-item">
-                                        <div class="legend-color" style="background-color: var(--purple-1);"></div>
-                                        <span>API (3.8%)</span>
-                                    </div>
-                                </div>
                             </div>
                             <div class="col-md-6">
-                                <div class="device-item">
-                                    <div class="device-icon device-icon-desktop">
-                                        <i class="fas fa-desktop fa-lg"></i>
-                                    </div>
-                                    <div class="device-details">
-                                        <div class="device-name">Desktop</div>
-                                        <div class="device-stats">
-                                            <div class="device-percentage">58.4%</div>
-                                            3,245 sessions
+                                <div class="chart-legend">
+                                    <div class="device-item">
+                                        <div class="device-icon device-icon-desktop">
+                                            <i class="fas fa-desktop fa-lg"></i>
+                                        </div>
+                                        <div class="device-details">
+                                            <div class="device-name">Desktop</div>
+                                            <div class="device-stats">
+                                                <div class="device-percentage">58.4%</div>
+                                            </div>
                                         </div>
                                     </div>
-                                </div>
-                                <div class="device-item">
-                                    <div class="device-icon device-icon-mobile">
-                                        <i class="fas fa-mobile-alt fa-lg"></i>
-                                    </div>
-                                    <div class="device-details">
-                                        <div class="device-name">Mobile</div>
-                                        <div class="device-stats">
-                                            <div class="device-percentage">32.1%</div>
-                                            1,782 sessions
+                                    <div class="device-item">
+                                        <div class="device-icon device-icon-mobile">
+                                            <i class="fas fa-mobile-alt fa-lg"></i>
+                                        </div>
+                                        <div class="device-details">
+                                            <div class="device-name">Mobile</div>
+                                            <div class="device-stats">
+                                                <div class="device-percentage">32.1%</div>
+                                            </div>
                                         </div>
                                     </div>
-                                </div>
-                                <div class="device-item">
-                                    <div class="device-icon device-icon-tablet">
-                                        <i class="fas fa-tablet-alt fa-lg"></i>
-                                    </div>
-                                    <div class="device-details">
-                                        <div class="device-name">Tablet</div>
-                                        <div class="device-stats">
-                                            <div class="device-percentage">5.7%</div>
-                                            317 sessions
+                                    <div class="device-item">
+                                        <div class="device-icon device-icon-tablet">
+                                            <i class="fas fa-tablet-alt fa-lg"></i>
+                                        </div>
+                                        <div class="device-details">
+                                            <div class="device-name">Tablet</div>
+                                            <div class="device-stats">
+                                                <div class="device-percentage">5.7%</div>
+                                            </div>
                                         </div>
                                     </div>
-                                </div>
-                                <div class="device-item">
-                                    <div class="device-icon device-icon-api">
-                                        <i class="fas fa-code fa-lg"></i>
-                                    </div>
-                                    <div class="device-details">
-                                        <div class="device-name">API</div>
-                                        <div class="device-stats">
-                                            <div class="device-percentage">3.8%</div>
-                                            211 sessions
+                                    <div class="device-item">
+                                        <div class="device-icon device-icon-api">
+                                            <i class="fas fa-code fa-lg"></i>
+                                        </div>
+                                        <div class="device-details">
+                                            <div class="device-name">API</div>
+                                            <div class="device-stats">
+                                                <div class="device-percentage">3.8%</div>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
@@ -291,7 +271,7 @@
                 </div>
             </div>
             <div class="col-lg-6">
-                <div class="okta-card">
+                <div class="content-card">
                     <div class="okta-card-header">
                         <h2 class="okta-card-title">Geographic Distribution</h2>
                     </div>
@@ -461,24 +441,26 @@
             <div class="card-body">
                 <h5>Hourly Activity (Last 7 Days)</h5>
                 <div class="heatmap-container-wrapper">
-                    <div class="heatmap-labels-y">
-                        <div>Sunday</div>
-                        <div>Monday</div>
-                        <div>Tuesday</div>
-                        <div>Wednesday</div>
-                        <div>Thursday</div>
-                        <div>Friday</div>
-                        <div>Saturday</div>
-                    </div>
-                    <div class="heatmap-container" id="activityHeatmap">
-                        <!-- Heatmap cells will be dynamically generated -->
-                    </div>
                     <div class="heatmap-labels-x">
                         <div>12 AM</div>
                         <div>6 AM</div>
                         <div>12 PM</div>
                         <div>6 PM</div>
                         <div>11 PM</div>
+                    </div>
+                    <div class="heatmap-main-content">
+                        <div class="heatmap-labels-y">
+                            <div>Sunday</div>
+                            <div>Monday</div>
+                            <div>Tuesday</div>
+                            <div>Wednesday</div>
+                            <div>Thursday</div>
+                            <div>Friday</div>
+                            <div>Saturday</div>
+                        </div>
+                        <div class="heatmap-container" id="activityHeatmap">
+                            <!-- Heatmap cells will be dynamically generated -->
+                        </div>
                     </div>
                 </div>
                 <div class="mt-4">
@@ -499,6 +481,26 @@
         // Toggle sidebar on mobile
         document.querySelector('.sidebar-toggle').addEventListener('click', function() {
             document.querySelector('.sidebar').classList.toggle('show');
+        });
+        
+        // Period filter buttons
+        document.querySelectorAll('.filter-btn[data-period]').forEach(function(button) {
+            button.addEventListener('click', function() {
+                // Remove active class from all buttons
+                document.querySelectorAll('.filter-btn[data-period]').forEach(function(btn) {
+                    btn.classList.remove('active');
+                });
+                
+                // Add active class to clicked button
+                this.classList.add('active');
+                
+                // Here you would update the chart data based on the selected period
+                var period = this.getAttribute('data-period');
+                console.log('Selected time period:', period);
+                
+                // You could implement an AJAX request here to refresh the data
+                // fetchDataForTimePeriod(period);
+            });
         });
         
         // Authentication Activity Chart
