@@ -174,7 +174,7 @@ class Command(BaseCommand):
                 }
                 
             except Exception as e:
-                self.stdout.write(self.style.WARNING(f"❌ Error loading the registered private key: {e}"))
+                self.stdout.write(self.style.WARNING(f"[ERROR] Error loading the registered private key: {e}"))
                 self.stdout.write(self.style.WARNING("Generating a new key pair instead - IMPORTANT: This won't work with Okta unless registered"))
                 # Generate private key
                 private_key = rsa.generate_private_key(
@@ -305,11 +305,23 @@ class Command(BaseCommand):
                     "exp": now + 60             # Expiration time (1 minute)
                 }
                 
-                # Sign the JWT
+                # Get key ID from environment or from a default fallback
+                key_id = os.environ.get('OKTA_LOGS_KEY_ID', 'jvZNekvTGbOrrbbtpmL89qZon5s8WGqR65wtko1yFpc')
+                if debug:
+                    self.stdout.write(f"Using key ID (kid): {key_id}")
+                
+                # Create JWT header with kid
+                headers = {
+                    "alg": "RS256",
+                    "kid": key_id  # Add the key ID to the JWT header
+                }
+                
+                # Sign the JWT with headers that include the kid
                 client_assertion = jwt.encode(
                     payload=payload,
                     key=private_key_pem,
-                    algorithm="RS256"
+                    algorithm="RS256",
+                    headers=headers
                 )
                 
                 if debug:

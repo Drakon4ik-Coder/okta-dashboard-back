@@ -34,6 +34,10 @@ class OktaOAuthClient:
         self.client_secret = os.environ.get('OKTA_CLIENT_SECRET', settings.OKTA_CLIENT_SECRET)
         self.redirect_uri = os.environ.get('OKTA_REDIRECT_URI', settings.OKTA_REDIRECT_URI)
         
+        # Get the key ID for client assertions
+        self.key_id = os.environ.get('OKTA_LOGS_KEY_ID', 
+                                  getattr(settings, 'OKTA_LOGS_KEY_ID', None))
+        
         # Get Okta org URL from environment first
         okta_org_url = os.environ.get('OKTA_ORG_URL', settings.OKTA_ORG_URL)
         
@@ -153,6 +157,11 @@ class OktaOAuthClient:
             "alg": "RS256",
             "use": "sig"
         }
+        
+        # Add kid (key ID) if configured
+        if self.key_id:
+            self.jwk["kid"] = self.key_id
+            logger.debug(f"Using configured key ID (kid): {self.key_id}")
     
     def _create_dpop_proof(self, http_method: str, url: str, nonce: Optional[str] = None) -> str:
         """
@@ -300,11 +309,18 @@ class OktaOAuthClient:
             "exp": now + 60            # Expires in 1 minute
         }
         
-        # Sign the JWT
+        # Create headers with kid if available
+        headers = {"alg": "RS256"}
+        if self.key_id:
+            headers["kid"] = self.key_id
+            logger.debug(f"Including configured key ID (kid) in client assertion: {self.key_id}")
+        
+        # Sign the JWT with headers
         client_assertion = jwt.encode(
             payload=payload,
             key=private_key_pem,
-            algorithm="RS256"
+            algorithm="RS256",
+            headers=headers
         )
         
         return client_assertion
