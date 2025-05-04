@@ -5,6 +5,9 @@ import time
 import uuid
 import jwt
 import json
+import hashlib
+import os
+import re
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.hazmat.primitives import serialization
 from typing import Dict, Optional, Tuple, Any
@@ -26,12 +29,30 @@ class OktaOAuthClient:
     
     def __init__(self):
         """Initialize the OAuth client with settings from Django configuration"""
-        self.client_id = settings.OKTA_CLIENT_ID
-        self.client_secret = settings.OKTA_CLIENT_SECRET
-        self.redirect_uri = settings.OKTA_REDIRECT_URI
-        self.authorization_endpoint = settings.OKTA_AUTHORIZATION_ENDPOINT
-        self.token_endpoint = settings.OKTA_TOKEN_ENDPOINT
-        self.userinfo_endpoint = settings.OKTA_USER_INFO_ENDPOINT
+        # Prioritize environment variables over settings
+        self.client_id = os.environ.get('OKTA_CLIENT_ID', settings.OKTA_CLIENT_ID)
+        self.client_secret = os.environ.get('OKTA_CLIENT_SECRET', settings.OKTA_CLIENT_SECRET)
+        self.redirect_uri = os.environ.get('OKTA_REDIRECT_URI', settings.OKTA_REDIRECT_URI)
+        
+        # Get Okta org URL from environment first
+        okta_org_url = os.environ.get('OKTA_ORG_URL', settings.OKTA_ORG_URL)
+        
+        # Use token endpoint from environment or construct from org URL
+        self.token_endpoint = os.environ.get('OKTA_TOKEN_ENDPOINT', 
+                                          settings.OKTA_TOKEN_ENDPOINT if hasattr(settings, 'OKTA_TOKEN_ENDPOINT') else 
+                                          f"{okta_org_url}/oauth2/v1/token" if okta_org_url else None)
+        
+        # Construct other endpoints based on org URL if not specified
+        self.authorization_endpoint = os.environ.get('OKTA_AUTHORIZATION_ENDPOINT', 
+                                                 settings.OKTA_AUTHORIZATION_ENDPOINT if hasattr(settings, 'OKTA_AUTHORIZATION_ENDPOINT') else 
+                                                 f"{okta_org_url}/oauth2/v1/authorize" if okta_org_url else None)
+        
+        self.userinfo_endpoint = os.environ.get('OKTA_USER_INFO_ENDPOINT', 
+                                            settings.OKTA_USER_INFO_ENDPOINT if hasattr(settings, 'OKTA_USER_INFO_ENDPOINT') else 
+                                            f"{okta_org_url}/oauth2/v1/userinfo" if okta_org_url else None)
+        
+        # Log configuration for debugging
+        logger.debug(f"Using Okta configuration - URL: {okta_org_url}, Token Endpoint: {self.token_endpoint}")
         
         # Generate RSA key pair for DPoP (with caching)
         self._setup_key_pair()
@@ -135,15 +156,15 @@ class OktaOAuthClient:
     
     def _create_dpop_proof(self, http_method: str, url: str, nonce: Optional[str] = None) -> str:
         """
-        Create a DPoP proof for token requests
+        Create a DPoP proof JWT for API requests.
         
         Args:
-            http_method: HTTP method of the request
-            url: URL of the request
-            nonce: Optional nonce value provided by the server
+            http_method: HTTP method (POST, GET, etc.)
+            url: Target URL
+            nonce: Optional nonce from server
             
         Returns:
-            DPoP proof JWT
+            DPoP proof JWT string
         """
         # Create the private key in PEM format for JWT signing
         private_key_pem = self.private_key.private_bytes(
@@ -152,17 +173,24 @@ class OktaOAuthClient:
             encryption_algorithm=serialization.NoEncryption()
         )
         
+        # Parse the URL to extract components and normalize for DPoP
+        from urllib.parse import urlparse
+        parsed_url = urlparse(url)
+        
+        # For token endpoint, use full URL
+        normalized_url = url
+        
         # Create DPoP proof JWT
         now = int(time.time())
         proof = {
-            "jti": str(uuid.uuid4()),
-            "htm": http_method,
-            "htu": url,
-            "iat": now,
-            "exp": now + 60,  # Valid for 1 minute
+            "jti": str(uuid.uuid4()),  # Unique identifier
+            "htm": http_method,        # HTTP method
+            "htu": normalized_url,     # HTTP target URL
+            "iat": now,                # Issued at time
+            "exp": now + 60            # Expiration (1 minute)
         }
         
-        # Add nonce if provided
+        # Add nonce if provided - required for subsequent requests
         if nonce:
             proof["nonce"] = nonce
         
@@ -182,607 +210,438 @@ class OktaOAuthClient:
         )
         
         return dpop_proof
-    
+        
     def _get_dpop_nonce(self, url: str) -> Optional[str]:
         """
-        Get a DPoP nonce from the server using cached value if available
+        Get a DPoP nonce from the server by making a minimal request.
+        This is required for DPoP security to prevent replay attacks.
         
         Args:
-            url: The endpoint URL
+            url: The URL to request the nonce from
             
         Returns:
-            Nonce string if available, None otherwise
+            The DPoP nonce if available, None otherwise
         """
-        # First check if we have a cached nonce
-        cached_nonce = cache.get(self.nonce_cache_key)
-        if cached_nonce:
-            logger.debug(f"Using cached DPoP nonce")
-            return cached_nonce
-            
         try:
-            # Make a HEAD request to token endpoint with DPoP header
-            initial_proof = self._create_dpop_proof("HEAD", url)
-            headers = {"DPoP": initial_proof}
+            # Create initial DPoP proof without nonce
+            initial_proof = self._create_dpop_proof("POST", url)
             
-            logger.debug(f"Fetching DPoP nonce with HEAD request")
-            # Use the session for connection pooling benefits
-            head_response = self.session.head(
-                url, 
+            # Create minimal headers
+            headers = {
+                "Content-Type": "application/x-www-form-urlencoded",
+                "Accept": "application/json",
+                "DPoP": initial_proof
+            }
+            
+            # Create a minimal client assertion
+            client_assertion = self._create_client_assertion(url)
+            
+            # Prepare minimal data
+            data = {
+                "client_id": self.client_id,
+                "client_assertion_type": "urn:ietf:params:oauth:client-assertion-type:jwt-bearer",
+                "client_assertion": client_assertion,
+                "grant_type": "client_credentials"
+            }
+            
+            # Make a minimal request to get the nonce
+            response = self.session.post(
+                url,
                 headers=headers,
+                data=data,
                 timeout=10
             )
             
-            # Check if we received a DPoP-Nonce header
-            dpop_nonce = head_response.headers.get("DPoP-Nonce")
-            if dpop_nonce:
-                logger.debug(f"Received DPoP nonce from HEAD request: {dpop_nonce}")
-                # Cache the nonce for future use
-                cache.set(self.nonce_cache_key, dpop_nonce, self.nonce_cache_ttl)
-                return dpop_nonce
+            # Check for DPoP-Nonce header (case insensitive)
+            for header_name, header_value in response.headers.items():
+                if header_name.lower() == 'dpop-nonce':
+                    return header_value
             
-            # If HEAD didn't work, try a minimal POST request
-            if not dpop_nonce:
-                logger.debug(f"Making minimal POST request to get DPoP nonce")
-                response = self.session.post(
-                    url,
-                    headers=headers,
-                    data={"grant_type": "client_credentials"},
-                    allow_redirects=False,
-                    timeout=10
-                )
-                
-                # Check if we received a DPoP-Nonce header
-                dpop_nonce = response.headers.get("DPoP-Nonce")
-                if dpop_nonce:
-                    logger.debug(f"Received DPoP nonce from POST request")
-                    # Cache the nonce for future use
-                    cache.set(self.nonce_cache_key, dpop_nonce, self.nonce_cache_ttl)
-                    return dpop_nonce
-                
-                # Extract from WWW-Authenticate header if present
-                www_auth = response.headers.get("WWW-Authenticate", "")
-                if "DPoP" in www_auth and "nonce=" in www_auth:
-                    import re
-                    nonce_match = re.search(r'nonce="([^"]+)"', www_auth)
-                    if nonce_match:
-                        dpop_nonce = nonce_match.group(1)
-                        logger.debug(f"Extracted nonce from WWW-Authenticate: {dpop_nonce}")
-                        cache.set(self.nonce_cache_key, dpop_nonce, self.nonce_cache_ttl)
-                        return dpop_nonce
+            # Also check WWW-Authenticate header for nonce
+            www_auth = response.headers.get("WWW-Authenticate", "")
+            if "dpop" in www_auth.lower() and "nonce=" in www_auth.lower():
+                import re
+                nonce_match = re.search(r'nonce="([^"]+)"', www_auth)
+                if nonce_match:
+                    return nonce_match.group(1)
             
-            logger.info("No DPoP nonce available, proceeding without it")
+            # No nonce found
             return None
-            
+                
         except Exception as e:
-            logger.warning(f"Error getting DPoP nonce: {e}")
+            logger.error(f"Error getting DPoP nonce: {str(e)}")
             return None
-    
-    def get_authorization_url(self, state: str, scope: str = "openid profile email") -> str:
+            
+    def _create_client_assertion(self, audience: str) -> str:
         """
-        Generate the authorization URL for the OAuth flow.
+        Create a signed JWT assertion for client authentication using private_key_jwt
         
         Args:
-            state: Random string for CSRF protection
-            scope: OAuth scopes to request
+            audience: The audience for the token (typically the token endpoint)
             
         Returns:
-            URL to redirect the user to for authentication
+            Signed JWT token as string
         """
-        auth_params = {
+        # Convert private key to PEM format for JWT signing
+        private_key_pem = self.private_key.private_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PrivateFormat.PKCS8,
+            encryption_algorithm=serialization.NoEncryption()
+        )
+        
+        # Create JWT assertion
+        now = int(time.time())
+        payload = {
+            "iss": self.client_id,     # Issuer is the client_id
+            "sub": self.client_id,     # Subject is also the client_id
+            "aud": audience,           # Audience is the token endpoint
+            "jti": str(uuid.uuid4()),  # Unique identifier
+            "iat": now,                # Issued at time
+            "exp": now + 60            # Expires in 1 minute
+        }
+        
+        # Sign the JWT
+        client_assertion = jwt.encode(
+            payload=payload,
+            key=private_key_pem,
+            algorithm="RS256"
+        )
+        
+        return client_assertion
+
+    def get_client_credentials_token(self, scopes: str = "okta.logs.read okta.users.read") -> Dict:
+        """
+        Get an OAuth 2.0 access token using client credentials flow with private_key_jwt and DPoP.
+        
+        This implementation uses:
+        1. private_key_jwt for client authentication (more secure than client secret)
+        2. DPoP proof for enhanced security and token binding
+        3. Automatic nonce handling with retry logic
+        
+        Args:
+            scopes: Space-separated list of scopes to request
+            
+        Returns:
+            Dict containing the access token and other token information
+        """
+        try:
+            logger.debug(f"Getting OAuth token using client credentials flow with private_key_jwt and DPoP")
+            
+            # Step 1: Get a DPoP nonce
+            token_url = self.token_endpoint
+            dpop_nonce = self._get_dpop_nonce(token_url)
+            
+            # Step 2: Create DPoP proof with nonce if available
+            dpop_proof = self._create_dpop_proof("POST", token_url, dpop_nonce)
+            
+            # Step 3: Create client assertion for private_key_jwt
+            client_assertion = self._create_client_assertion(token_url)
+            
+            # Step 4: Prepare headers and data
+            headers = {
+                "Content-Type": "application/x-www-form-urlencoded",
+                "Accept": "application/json",
+                "DPoP": dpop_proof
+            }
+            
+            data = {
+                "client_id": self.client_id,
+                "client_assertion_type": "urn:ietf:params:oauth:client-assertion-type:jwt-bearer",
+                "client_assertion": client_assertion,
+                "grant_type": "client_credentials",
+                "scope": scopes,
+                "token_type": "DPoP"
+            }
+            
+            # Step 5: Make the initial request
+            logger.debug(f"Making token request with private_key_jwt and DPoP")
+            response = self.session.post(
+                token_url,
+                headers=headers,
+                data=data,
+                timeout=15
+            )
+            
+            # Step 6: Handle response, including retry with new nonce if needed
+            if response.status_code == 200:
+                token_data = response.json()
+                logger.info(f"Successfully obtained DPoP token (expires in {token_data.get('expires_in', 'unknown')} seconds)")
+                
+                # Log the scopes that were granted (may differ from what was requested)
+                granted_scopes = token_data.get('scope', '')
+                if granted_scopes:
+                    logger.debug(f"Granted scopes: {granted_scopes}")
+                
+                return token_data
+            
+            # Handle nonce errors - if we received a new nonce, retry
+            if response.status_code in [400, 401] and "DPoP-Nonce" in response.headers:
+                new_nonce = response.headers.get("DPoP-Nonce")
+                logger.debug(f"Received new nonce in error response, retrying: {new_nonce}")
+                
+                # Create a new DPoP proof with the new nonce
+                new_dpop_proof = self._create_dpop_proof("POST", token_url, new_nonce)
+                headers["DPoP"] = new_dpop_proof
+                
+                # Create a new client assertion (for security best practice)
+                new_client_assertion = self._create_client_assertion(token_url)
+                data["client_assertion"] = new_client_assertion
+                
+                # Retry with the new nonce
+                retry_response = self.session.post(
+                    token_url,
+                    headers=headers,
+                    data=data,
+                    timeout=15
+                )
+                
+                if retry_response.status_code == 200:
+                    token_data = retry_response.json()
+                    logger.info(f"Successfully obtained DPoP token after retry (expires in {token_data.get('expires_in', 'unknown')} seconds)")
+                    return token_data
+                else:
+                    # Log the error before raising exception
+                    logger.error(f"Token request failed after retry: {retry_response.status_code} - {retry_response.text[:200]}")
+                    
+                    try:
+                        error_data = retry_response.json()
+                        error_msg = f"{error_data.get('error')}: {error_data.get('error_description')}"
+                    except:
+                        error_msg = retry_response.text[:200] if retry_response.text else f"Status {retry_response.status_code}"
+                    
+                    raise Exception(f"Failed to obtain OAuth token after retry: {error_msg}")
+            
+            # Handle errors
+            logger.error(f"Token request failed: {response.status_code} - {response.text[:200]}")
+            
+            try:
+                error_data = response.json()
+                error_msg = f"{error_data.get('error')}: {error_data.get('error_description')}"
+            except:
+                error_msg = response.text[:200] if response.text else f"Status {response.status_code}"
+            
+            raise Exception(f"Failed to obtain OAuth token: {error_msg}")
+            
+        except Exception as e:
+            logger.error(f"Error in client credentials flow: {str(e)}")
+            raise Exception(f"OAuth token acquisition failed: {str(e)}")
+    
+    def get_authorization_url(self, state: str) -> str:
+        """
+        Generate an authorization URL for initiating the OAuth 2.0 authorization code flow
+        
+        Args:
+            state: A random string to prevent CSRF attacks
+            
+        Returns:
+            The authorization URL to redirect the user to
+        """
+        if not self.authorization_endpoint:
+            raise ValueError("Authorization endpoint is not configured")
+            
+        # Required parameters for authorization code flow
+        params = {
             "client_id": self.client_id,
             "response_type": "code",
-            "scope": scope,
+            "scope": "openid profile email offline_access",
             "redirect_uri": self.redirect_uri,
             "state": state
         }
         
-        # Build the query string
-        query_params = "&".join([f"{k}={v}" for k, v in auth_params.items()])
-        return f"{self.authorization_endpoint}?{query_params}"
-    
+        # Construct URL with query parameters
+        query_string = "&".join([f"{key}={requests.utils.quote(value)}" for key, value in params.items()])
+        auth_url = f"{self.authorization_endpoint}?{query_string}"
+        
+        logger.debug(f"Generated authorization URL with state: {state[:5]}...")
+        return auth_url
+        
     def exchange_code_for_tokens(self, code: str) -> Dict:
         """
-        Exchange an authorization code for access and refresh tokens.
+        Exchange an authorization code for tokens using the token endpoint
         
         Args:
-            code: The authorization code from the callback
+            code: The authorization code received from the authorization server
             
         Returns:
-            Dictionary containing tokens and metadata
-            
-        Raises:
-            Exception: If token exchange fails
+            Dict containing tokens (access_token, id_token, refresh_token) and metadata
         """
-        token_data = {
-            "grant_type": "authorization_code",
-            "code": code,
-            "redirect_uri": self.redirect_uri
-        }
+        logger.debug("Exchanging authorization code for tokens")
         
-        # Try the DPoP approach first since your Okta setup requires it
         try:
-            logger.info("Exchanging authorization code for tokens (with DPoP)")
+            # Prepare the token request with basic auth
+            data = {
+                "grant_type": "authorization_code",
+                "code": code,
+                "redirect_uri": self.redirect_uri
+            }
             
-            # Get a DPoP nonce
-            dpop_nonce = self._get_dpop_nonce(self.token_endpoint)
-            
-            # Create DPoP proof
-            dpop_proof = self._create_dpop_proof("POST", self.token_endpoint, dpop_nonce)
-            
-            # Add DPoP headers
-            headers = self.token_headers.copy()
-            headers["DPoP"] = dpop_proof
-            
-            # Add token type since we're using DPoP
-            token_data_with_type = token_data.copy()
-            token_data_with_type["token_type"] = "DPoP"
-            
+            # Send the token request
             response = self.session.post(
                 self.token_endpoint,
-                headers=headers,
-                data=token_data_with_type,
+                headers=self.token_headers,
+                data=data,
                 timeout=15
+            )
+            
+            # Check if the request was successful
+            if response.status_code == 200:
+                token_data = response.json()
+                
+                # Log success without exposing tokens
+                logger.info("Successfully exchanged code for tokens")
+                logger.debug(f"Token response contains fields: {', '.join(token_data.keys())}")
+                
+                return token_data
+            else:
+                # Log the error
+                logger.error(f"Token exchange failed: {response.status_code}")
+                try:
+                    error_data = response.json()
+                    error_msg = f"{error_data.get('error')}: {error_data.get('error_description', '')}"
+                    logger.error(f"Error details: {error_msg}")
+                    raise Exception(f"Token exchange failed: {error_msg}")
+                except json.JSONDecodeError:
+                    error_msg = response.text[:200]
+                    logger.error(f"Error response: {error_msg}")
+                    raise Exception(f"Token exchange failed: HTTP {response.status_code} - {error_msg}")
+                
+        except requests.RequestException as e:
+            logger.error(f"Request failed during token exchange: {str(e)}")
+            raise Exception(f"Connection error during token exchange: {str(e)}")
+        except Exception as e:
+            logger.error(f"Error during token exchange: {str(e)}")
+            raise Exception(f"Failed to exchange code for tokens: {str(e)}")
+    
+    def get_user_info(self, access_token: str, token_type: str = "Bearer", id_token: Optional[str] = None) -> Dict:
+        """
+        Get user information using the access token
+        
+        Args:
+            access_token: The access token
+            token_type: The token type (Bearer, DPoP)
+            id_token: Optional ID token for fallback
+            
+        Returns:
+            Dict containing user information
+        """
+        logger.debug("Getting user info with access token")
+        
+        try:
+            # First try using the user info endpoint
+            headers = {
+                "Authorization": f"{token_type} {access_token}",
+                "Accept": "application/json"
+            }
+            
+            response = self.session.get(
+                self.userinfo_endpoint,
+                headers=headers,
+                timeout=10
             )
             
             if response.status_code == 200:
-                logger.info("Token exchange successful")
-                return response.json()
-                
-            # Handle nonce errors specifically
-            if response.status_code in [400, 401]:
+                user_info = response.json()
+                logger.info(f"Successfully retrieved user info for subject: {user_info.get('sub', 'unknown')}")
+                return user_info
+            else:
+                # If userinfo endpoint fails, try to decode the ID token
+                if id_token:
+                    logger.debug("Using ID token as fallback for user info")
+                    return self._parse_id_token(id_token)
+                    
+                logger.error(f"User info request failed: {response.status_code}")
                 try:
                     error_data = response.json()
-                    if error_data.get("error") == "use_dpop_nonce" or "nonce" in error_data.get("error_description", "").lower():
-                        # Try to extract nonce from response
-                        new_nonce = None
-                        
-                        # Try from headers first
-                        if "DPoP-Nonce" in response.headers:
-                            new_nonce = response.headers.get("DPoP-Nonce")
-                        
-                        # Try from WWW-Authenticate header
-                        if not new_nonce and "WWW-Authenticate" in response.headers:
-                            www_auth = response.headers.get("WWW-Authenticate")
-                            import re
-                            nonce_match = re.search(r'nonce="([^"]+)"', www_auth)
-                            if nonce_match:
-                                new_nonce = nonce_match.group(1)
-                        
-                        # If we got a new nonce, try again
-                        if new_nonce:
-                            logger.debug(f"Retrying with new nonce: {new_nonce}")
-                            # Cache the new nonce
-                            cache.set(self.nonce_cache_key, new_nonce, self.nonce_cache_ttl)
-                            
-                            # Create new proof and make request
-                            dpop_proof = self._create_dpop_proof("POST", self.token_endpoint, new_nonce)
-                            headers["DPoP"] = dpop_proof
-                            
-                            # Try again with the new nonce
-                            retry_response = self.session.post(
-                                self.token_endpoint,
-                                headers=headers,
-                                data=token_data_with_type,
-                                timeout=15
-                            )
-                            
-                            if retry_response.status_code == 200:
-                                logger.info("Token exchange successful with new nonce")
-                                return retry_response.json()
-                except Exception as parse_error:
-                    logger.warning(f"Error handling nonce issues: {parse_error}")
-            
-            # If DPoP failed but not due to missing nonce, fallback to standard OAuth
-            logger.warning(f"DPoP token exchange failed: {response.status_code} - {response.text}")
-            logger.info("Trying fallback to standard OAuth...")
-            
-            # Try standard OAuth as fallback
-            standard_response = self.session.post(
-                self.token_endpoint, 
-                headers=self.token_headers,
-                data=token_data,
-                timeout=15
-            )
-            
-            if standard_response.status_code == 200:
-                logger.info("Token exchange successful (standard OAuth)")
-                return standard_response.json()
-            else:
-                # Both methods failed
-                logger.error(f"All token exchange methods failed. Standard OAuth response: {standard_response.status_code} - {standard_response.text}")
-                raise Exception(f"Token exchange failed: {response.status_code} - {response.text}")
+                    error_msg = f"{error_data.get('error')}: {error_data.get('error_description', '')}"
+                    raise Exception(f"User info request failed: {error_msg}")
+                except json.JSONDecodeError:
+                    raise Exception(f"User info request failed: HTTP {response.status_code}")
         
         except Exception as e:
-            logger.error(f"Failed to exchange code for tokens: {e}")
-            raise Exception(f"OAuth token exchange failed: {str(e)}")
+            logger.error(f"Error getting user info: {str(e)}")
+            raise Exception(f"Failed to get user info: {str(e)}")
     
+    def _parse_id_token(self, id_token: str) -> Dict:
+        """
+        Parse and validate an ID token
+        
+        Args:
+            id_token: The ID token to parse
+            
+        Returns:
+            Dict containing the claims from the ID token
+        """
+        try:
+            # Get the payload part
+            token_parts = id_token.split('.')
+            if len(token_parts) != 3:
+                raise Exception("Invalid token format")
+                
+            # Base64 decode the payload
+            payload = token_parts[1]
+            # Add padding if needed
+            padding = '=' * (4 - len(payload) % 4) if len(payload) % 4 else ''
+            decoded_bytes = base64.urlsafe_b64decode(payload + padding)
+            payload_data = json.loads(decoded_bytes.decode('utf-8'))
+            
+            # Basic validation
+            now = int(time.time())
+            if payload_data.get('exp', 0) < now:
+                raise Exception("ID token has expired")
+                
+            logger.debug(f"Successfully parsed ID token for subject: {payload_data.get('sub', 'unknown')}")
+            return payload_data
+            
+        except Exception as e:
+            logger.error(f"Error parsing ID token: {str(e)}")
+            raise Exception(f"Failed to parse ID token: {str(e)}")
+            
     def refresh_access_token(self, refresh_token: str) -> Dict:
         """
-        Refresh an access token using a refresh token.
+        Refresh an access token using a refresh token
         
         Args:
             refresh_token: The refresh token
             
         Returns:
-            Dictionary containing new tokens
-            
-        Raises:
-            Exception: If token refresh fails
+            Dict containing the new tokens and metadata
         """
-        refresh_data = {
-            "grant_type": "refresh_token",
-            "refresh_token": refresh_token
-        }
+        logger.debug("Refreshing access token with refresh token")
         
-        # Try DPoP approach first since your Okta setup requires it
         try:
-            logger.debug("Refreshing token with DPoP")
+            # Prepare the token request with basic auth
+            data = {
+                "grant_type": "refresh_token",
+                "refresh_token": refresh_token
+            }
             
-            # Get DPoP nonce
-            dpop_nonce = self._get_dpop_nonce(self.token_endpoint)
-            dpop_proof = self._create_dpop_proof("POST", self.token_endpoint, dpop_nonce)
-            
-            # Create headers with DPoP
-            headers = self.token_headers.copy()
-            headers["DPoP"] = dpop_proof
-            
-            # Add token_type for DPoP
-            refresh_data_with_type = refresh_data.copy()
-            refresh_data_with_type["token_type"] = "DPoP"
-            
-            # Try with DPoP
-            dpop_response = self.session.post(
-                self.token_endpoint,
-                headers=headers,
-                data=refresh_data_with_type,
-                timeout=15
-            )
-            
-            if dpop_response.status_code == 200:
-                logger.info("Token refresh successful with DPoP")
-                return dpop_response.json()
-                
-            # Try standard OAuth as fallback
-            logger.debug("DPoP refresh failed, trying standard OAuth")
+            # Send the token request
             response = self.session.post(
                 self.token_endpoint,
                 headers=self.token_headers,
-                data=refresh_data,
+                data=data,
                 timeout=15
             )
             
+            # Check if the request was successful
             if response.status_code == 200:
-                logger.info("Token refresh successful with standard OAuth")
-                return response.json()
+                token_data = response.json()
                 
-            # If both methods failed, log details and raise error
-            logger.error(f"All token refresh methods failed. DPoP: {dpop_response.status_code}, Standard: {response.status_code}")
-            logger.error(f"DPoP response: {dpop_response.text[:200]}")
-            logger.error(f"Standard response: {response.text[:200]}")
-            raise Exception(f"Token refresh failed with both methods")
-            
-        except Exception as e:
-            logger.error(f"Failed to refresh token: {e}")
-            raise Exception(f"OAuth token refresh failed: {str(e)}")
-    
-    def validate_token(self, access_token: str) -> bool:
-        """
-        Validate an access token by making a request to the userinfo endpoint.
-        
-        Args:
-            access_token: The access token to validate
-            
-        Returns:
-            Boolean indicating if the token is valid
-        """
-        # First try standard Bearer authentication
-        try:
-            response = self.session.get(
-                self.userinfo_endpoint,
-                headers={
-                    "Authorization": f"Bearer {access_token}"
-                },
-                timeout=10
-            )
-            if response.status_code == 200:
-                return True
+                # Log success without exposing tokens
+                logger.info("Successfully refreshed access token")
+                logger.debug(f"Token response contains fields: {', '.join(token_data.keys())}")
                 
-            # If standard fails, try with DPoP
-            if response.status_code == 401:
-                dpop_nonce = self._get_dpop_nonce(self.userinfo_endpoint)
-                dpop_proof = self._create_dpop_proof("GET", self.userinfo_endpoint, dpop_nonce)
-                
-                dpop_response = self.session.get(
-                    self.userinfo_endpoint,
-                    headers={
-                        "Authorization": f"Bearer {access_token}",
-                        "DPoP": dpop_proof
-                    },
-                    timeout=10
-                )
-                return dpop_response.status_code == 200
-                
-            return False
-        except:
-            return False
-    
-    def _parse_id_token(self, id_token: str) -> Dict:
-        """
-        Parse and validate an ID token to extract user information
-        
-        Args:
-            id_token: The ID token from the token response
-            
-        Returns:
-            Dictionary containing user info extracted from the token
-            
-        Raises:
-            Exception: If token parsing fails
-        """
-        try:
-            # First try to decode without verification (for zero trust systems,
-            # we'll still validate the claims even if we can't verify signature)
-            decoded_token = jwt.decode(id_token, options={"verify_signature": False})
-            
-            # Extract standard OpenID Connect claims
-            user_info = {
-                "sub": decoded_token.get("sub"),
-                "email": decoded_token.get("email"),
-                "preferred_username": decoded_token.get("preferred_username"),
-                "name": decoded_token.get("name"),
-                "given_name": decoded_token.get("given_name"),
-                "family_name": decoded_token.get("family_name")
-            }
-            
-            # Include any other standard claims that might be present
-            for claim in ["email_verified", "zoneinfo", "locale", "nickname", "picture", "birthdate"]:
-                if claim in decoded_token:
-                    user_info[claim] = decoded_token.get(claim)
-            
-            # Filter out None values
-            user_info = {k: v for k, v in user_info.items() if v is not None}
-            
-            # Ensure we at least have a subject identifier
-            if "sub" not in user_info or not user_info["sub"]:
-                raise Exception("ID token missing subject identifier")
-                
-            logger.info("Successfully extracted user info from ID token")
-            return user_info
-            
-        except Exception as e:
-            logger.error(f"Failed to parse ID token: {str(e)}")
-            raise Exception(f"Failed to extract user info from ID token: {str(e)}")
-
-    def get_user_info(self, access_token: str, token_type: str = None, id_token: str = None) -> Dict:
-        """
-        Get user information using an access token.
-        
-        Args:
-            access_token: The access token
-            token_type: Optional token type from token response (DPoP or Bearer)
-            id_token: Optional ID token that can be used as fallback for user info
-            
-        Returns:
-            User information dictionary
-            
-        Raises:
-            Exception: If userinfo request fails and no fallback is available
-        """
-        try:
-            # Log token details for debugging (safely)
-            token_prefix = access_token[:10] if len(access_token) > 10 else ""
-            logger.debug(f"Getting user info with token prefix: {token_prefix}...")
-            
-            # If token type is explicitly provided as DPoP, use that approach first
-            is_dpop_token = token_type and token_type.lower() == "dpop"
-            
-            if is_dpop_token:
-                logger.info("Using DPoP token type based on token response")
-            
-            attempts = []
-            responses = []
-            
-            # Try these strategies in sequence:
-            # 1. DPoP with appropriate header format
-            # 2. Alternative DPoP header format (if applicable)
-            # 3. Standard Bearer token
-            # 4. Request with Accept header variations
-            # 5. Fallback to ID token parsing if all else fails
-            
-            # Strategy 1: Try with DPoP proof and appropriate header format
-            try:
-                logger.debug("Attempting to get user info with DPoP token")
-                dpop_nonce = self._get_dpop_nonce(self.userinfo_endpoint)
-                dpop_proof = self._create_dpop_proof("GET", self.userinfo_endpoint, dpop_nonce)
-                
-                # Create headers with appropriate token binding
-                dpop_headers = {
-                    "Authorization": f"DPoP {access_token}" if is_dpop_token else f"Bearer {access_token}",
-                    "DPoP": dpop_proof,
-                    "Accept": "application/json"
-                }
-                
-                # Make the request with DPoP
-                logger.debug(f"Making userinfo request with DPoP headers to: {self.userinfo_endpoint}")
-                
-                # Check if endpoint URL is valid
-                if not self.userinfo_endpoint or not self.userinfo_endpoint.startswith(("http://", "https://")):
-                    logger.warning(f"Potentially invalid userinfo endpoint: {self.userinfo_endpoint}")
-                
-                dpop_response = self.session.get(
-                    self.userinfo_endpoint,
-                    headers=dpop_headers,
-                    timeout=15  # Increased timeout for reliability
-                )
-                
-                # Log response details
-                logger.debug(f"DPoP userinfo response: {dpop_response.status_code}")
-                responses.append(("DPoP", dpop_response))
-                
-                if dpop_response.status_code == 200:
-                    logger.info("User info retrieved successfully with DPoP")
-                    return dpop_response.json()
-            except Exception as e:
-                attempts.append(("DPoP", str(e)))
-                logger.warning(f"DPoP user info attempt failed: {e}")
-            
-            # Strategy 2: If DPoP might be required but failed, try alternate DPoP header format 
-            if is_dpop_token:
-                try:
-                    logger.debug("Trying alternate DPoP header format")
-                    dpop_nonce = self._get_dpop_nonce(self.userinfo_endpoint)
-                    dpop_proof = self._create_dpop_proof("GET", self.userinfo_endpoint, dpop_nonce)
-                    
-                    alt_dpop_headers = {
-                        "Authorization": f"Bearer {access_token}",  # Try Bearer format
-                        "DPoP": dpop_proof,
-                        "Accept": "application/json"
-                    }
-                    
-                    alt_dpop_response = self.session.get(
-                        self.userinfo_endpoint,
-                        headers=alt_dpop_headers,
-                        timeout=15
-                    )
-                    
-                    logger.debug(f"Alternate DPoP header format response: {alt_dpop_response.status_code}")
-                    responses.append(("Alt-DPoP", alt_dpop_response))
-                    
-                    if alt_dpop_response.status_code == 200:
-                        logger.info("User info retrieved successfully with alternate DPoP format")
-                        return alt_dpop_response.json()
-                except Exception as e:
-                    attempts.append(("Alt-DPoP", str(e)))
-                    logger.warning(f"Alternate DPoP format attempt failed: {e}")
-            
-            # Strategy 3: Try standard Bearer token (as fallback)
-            try:
-                logger.debug("Trying standard Bearer token approach")
-                bearer_headers = {
-                    "Authorization": f"Bearer {access_token}",
-                    "Accept": "application/json"
-                }
-                
-                bearer_response = self.session.get(
-                    self.userinfo_endpoint,
-                    headers=bearer_headers,
-                    timeout=15
-                )
-                
-                logger.debug(f"Bearer userinfo response: {bearer_response.status_code}")
-                responses.append(("Bearer", bearer_response))
-                
-                if bearer_response.status_code == 200:
-                    logger.info("User info retrieved successfully with standard Bearer")
-                    return bearer_response.json()
-            except Exception as e:
-                attempts.append(("Bearer", str(e)))
-                logger.warning(f"Bearer token attempt failed: {e}")
-                
-            # Strategy 4: Try with different Accept headers
-            try:
-                logger.debug("Trying with explicit content-type headers")
-                accept_headers = {
-                    "Authorization": f"Bearer {access_token}",
-                    "Accept": "application/jwt, application/json;q=0.9",
-                    "Content-Type": "application/x-www-form-urlencoded"
-                }
-                
-                accept_response = self.session.get(
-                    self.userinfo_endpoint, 
-                    headers=accept_headers,
-                    timeout=15
-                )
-                
-                logger.debug(f"Accept header variation response: {accept_response.status_code}")
-                responses.append(("Accept-Variation", accept_response))
-                
-                if accept_response.status_code == 200:
-                    logger.info("User info retrieved successfully with accept header variations")
-                    return accept_response.json()
-            except Exception as e:
-                attempts.append(("Accept-Variation", str(e)))
-                logger.warning(f"Accept header variation attempt failed: {e}")
-                
-            # If all userinfo endpoint methods failed, log diagnostics
-            logger.warning("All userinfo endpoint methods failed - falling back to ID token")
-            
-            # Log attempt details for diagnostic purposes
-            for attempt_type, error in attempts:
-                logger.debug(f"{attempt_type} attempt error: {error}")
-            
-            # Check if ID token is available as fallback - THIS IS THE MAIN CHANGE
-            if id_token:
-                logger.info("Using ID token as fallback for user info - this is working as designed")
-                try:
-                    return self._parse_id_token(id_token)
-                except Exception as e:
-                    logger.error(f"ID token fallback also failed: {e}")
-                    # Now we truly have no way to get user info, so raise an exception
-                    raise
+                return token_data
             else:
-                # Only raise an exception if we don't have an id_token fallback
-                raise Exception("Failed to get user information and no ID token available")
+                # Log the error
+                logger.error(f"Token refresh failed: {response.status_code}")
+                try:
+                    error_data = response.json()
+                    error_msg = f"{error_data.get('error')}: {error_data.get('error_description', '')}"
+                    raise Exception(f"Token refresh failed: {error_msg}")
+                except json.JSONDecodeError:
+                    raise Exception(f"Token refresh failed: HTTP {response.status_code}")
                 
         except Exception as e:
-            logger.error(f"Error retrieving user info: {e}")
-            raise Exception(f"Failed to get user information: {str(e)}")
-    
-    def get_client_credentials_token(self) -> Dict:
-        """
-        Get an OAuth 2.0 access token using client credentials flow.
-        
-        This method is ideal for zero-trust architecture as it:
-        1. Uses short-lived tokens (typically 1 hour)
-        2. Can be scoped to specific permissions
-        3. Provides better audit trail than API tokens
-        4. Can be automatically rotated
-        
-        Returns:
-            Dict containing the access token and other token information
-        """
-        try:
-            logger.debug("Getting OAuth token using client credentials flow")
-            
-            # Prepare token request
-            token_url = self.token_endpoint
-            
-            # Authorization header using client ID and secret
-            client_auth = f"{settings.OKTA_CLIENT_ID}:{settings.OKTA_CLIENT_SECRET}"
-            auth_header = base64.b64encode(client_auth.encode()).decode()
-            
-            headers = {
-                "Authorization": f"Basic {auth_header}",
-                "Content-Type": "application/x-www-form-urlencoded",
-                "Accept": "application/json"
-            }
-            
-            # Request body
-            data = {
-                "grant_type": "client_credentials",
-                "scope": "okta.logs.read" # Use the appropriate scope for your Okta API access
-            }
-            
-            # Make the request with connection pooling benefits
-            response = self.session.post(
-                token_url,
-                headers=headers,
-                data=data,
-                timeout=15  # Increased timeout for reliability
-            )
-            
-            # Check for success
-            if response.status_code != 200:
-                error_msg = f"Failed to get client credentials token: {response.status_code} - {response.text}"
-                logger.error(error_msg)
-                raise Exception(error_msg)
-            
-            # Parse and return the token response
-            token_data = response.json()
-            logger.info(f"Successfully obtained OAuth token (expires in {token_data.get('expires_in', 'unknown')} seconds)")
-            
-            return token_data
-            
-        except Exception as e:
-            logger.error(f"Error getting client credentials token: {str(e)}")
-            raise Exception(f"Failed to obtain OAuth token: {str(e)}")
+            logger.error(f"Error during token refresh: {str(e)}")
+            raise Exception(f"Failed to refresh access token: {str(e)}")

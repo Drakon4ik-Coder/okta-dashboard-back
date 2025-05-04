@@ -83,6 +83,15 @@ class ContinuousAuthMiddleware(MiddlewareMixin):
     def _validate_token(self, request):
         """Validate the user's access token with Okta"""
         try:
+            # Check if this is a locally authenticated user (without Okta tokens)
+            if request.session.get('auth_method') == 'local':
+                logger.debug(f"Local authentication used for user {request.user.username} - skipping token validation")
+                # Update validation timestamp for locally authenticated users
+                current_time = int(time.time())
+                request.session['token_last_validated'] = current_time
+                request.session.modified = True
+                return True
+                
             # Get encrypted token from session
             encrypted_token = request.session.get('access_token')
             if not encrypted_token:
@@ -99,7 +108,7 @@ class ContinuousAuthMiddleware(MiddlewareMixin):
                     # Return valid for this request to prevent redirect loops
                     return True
                 return False
-                
+            
             # Check for recently authenticated sessions to prevent redirect loops
             # If authenticated within the last 30 seconds, skip validation
             auth_time = request.session.get('auth_time', 0)

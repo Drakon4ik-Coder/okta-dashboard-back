@@ -1,9 +1,12 @@
-from django.urls import path, include
+from django.urls import path, include, re_path
 from rest_framework.routers import DefaultRouter
 from rest_framework.documentation import include_docs_urls
 
-# Import avg_login_time view
-from login_tracking.api_views import avg_login_time
+# Import okta_login_time view
+from login_tracking.api_views import okta_login_time
+from drf_yasg.views import get_schema_view
+from drf_yasg import openapi
+from rest_framework import permissions
 
 # Import API views
 from .v1.views.forensics_views import ForensicEventsViewSet
@@ -29,10 +32,25 @@ v1_router.register(r'metrics', MetricsViewSet, basename='metrics')
 v1_router.register(r'users', UsersViewSet, basename='users')
 v1_router.register(r'events', EventsViewSet, basename='events')
 
+# Setup API documentation with drf-yasg
+schema_view = get_schema_view(
+    openapi.Info(
+        title="Okta Dashboard API",
+        default_version='v1',
+        description="API for the Okta Dashboard security monitoring system",
+        terms_of_service="",
+        contact=openapi.Contact(email="admin@example.com"),
+        license=openapi.License(name="Proprietary"),
+    ),
+    public=False,
+    permission_classes=(permissions.IsAuthenticated,),
+)
+
 
 # API URL patterns
 urlpatterns = [
-    path('v1/metrics/login_time/', avg_login_time, name='avg_login_time'),
+    # Average login time endpoint
+    path('v1/metrics/okta_login_time/', okta_login_time, name='okta_login_time'),
 
     # API version 1 routes - register via DefaultRouter
     path('v1/', include((v1_router.urls, 'v1'))),
@@ -53,12 +71,11 @@ urlpatterns = [
     path('forensic/mfa/', mfa_usage),
     path('forensic/zero-trust/', zero_trust_metrics),
     path('simulation/generate/', generate_simulation),
-    # API documentation
-    path('docs/', include_docs_urls(
-        title='Okta Dashboard API', 
-        description='API for the Okta Dashboard security monitoring system',
-        public=False
-    )),
+
+    # API documentation with drf-yasg (Swagger/OpenAPI)
+    re_path(r'^docs(?P<format>\.json|\.yaml)$', schema_view.without_ui(cache_timeout=0), name='schema-json'),
+    path('docs/', schema_view.with_ui('swagger', cache_timeout=0), name='schema-swagger-ui'),
+    path('redoc/', schema_view.with_ui('redoc', cache_timeout=0), name='schema-redoc'),
     
     # API schema for client-side consumption
     path('schema/', include('rest_framework.urls')),

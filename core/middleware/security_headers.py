@@ -88,7 +88,7 @@ class SecurityHeadersMiddleware(MiddlewareMixin):
             "manifest-src 'self'",
             "media-src 'self'",
             "worker-src 'self'",
-            "prefetch-src 'self'",
+            # Removing prefetch-src as it's not a recognized directive
             
             # Block access to document.cookie from JavaScript
             "require-trusted-types-for 'script'",
@@ -102,12 +102,6 @@ class SecurityHeadersMiddleware(MiddlewareMixin):
         csp = [directive for directive in csp if directive]
         
         response["Content-Security-Policy"] = "; ".join(csp)
-        
-        # Basic security headers
-        response["X-Content-Type-Options"] = "nosniff"
-        response["X-Frame-Options"] = "DENY"
-        response["X-XSS-Protection"] = "1; mode=block"
-        response["Referrer-Policy"] = "strict-origin-when-cross-origin"
         
         # Permissions policy - restrictive by default
         response["Permissions-Policy"] = (
@@ -135,16 +129,7 @@ class SecurityHeadersMiddleware(MiddlewareMixin):
         if request.path == '/logout/':
             response["Clear-Site-Data"] = '"cache", "cookies", "storage", "executionContexts"'
             
-        # Zero Trust specific security headers
-        
-        # Feature-Policy (deprecated but still supported by some browsers)
-        response["Feature-Policy"] = (
-            "camera 'none'; "
-            "microphone 'none'; "
-            "geolocation 'none'; "
-            "payment 'none'; "
-            "usb 'none'"
-        )
+        # Removed Feature-Policy (deprecated) - we're now using Permissions-Policy only
         
         # Add a request ID for traffic tracing in a Zero Trust network
         if not response.has_header('X-Request-ID') and hasattr(request, 'id'):

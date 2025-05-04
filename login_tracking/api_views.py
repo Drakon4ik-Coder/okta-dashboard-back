@@ -1,31 +1,28 @@
+# login_tracking/api_views.py
+import hmac, hashlib
+from django.conf import settings
 from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import IsAdminUser, IsAuthenticated, AllowAny
+from rest_framework.permissions import AllowAny, IsAdminUser
 from rest_framework.response import Response
-from django.db.models import Avg
-from .models import LoginTiming
-from .metrics import get_cached_avg_login_time
+from traffic_analysis.models import OktaEvent
+from .utils import compute_avg_okta_login_time, get_cached_avg_login_time
 
 @api_view(['GET'])
 @permission_classes([IsAdminUser])
-def avg_login_time(request):
-    """
-    Returns the average login timing in milliseconds.
-    """
-    avg = LoginTiming.objects.aggregate(avg_ms=Avg('duration_ms'))['avg_ms'] or 0.0
-    return Response({'avg_login_ms': round(avg, 2)})
+def okta_login_time(request):
+    days = int(request.query_params.get('days', 1))
+    avg = compute_avg_okta_login_time(days)
+    if avg is None:
+        return Response({'avg_ms': None, 'message': 'No events found.'}, status=204)
+    return Response({'avg_ms': round(avg, 1)})
 
 @api_view(['GET'])
-@permission_classes([AllowAny])  # Allow access to all users, authenticated or not
-def cached_avg_login_time(request):
-    """
-    Returns the cached average login time data.
-    This endpoint is available to all users as it contains non-sensitive dashboard data.
-    """
-    cache_data = get_cached_avg_login_time()
-    
-    # Return data including the trend value
+@permission_classes([AllowAny])
+def cached_okta_login_time(request):
+    days = int(request.query_params.get('days', 1))
+    data = get_cached_avg_login_time(days)
     return Response({
-        'avg_login_ms': cache_data['avg_ms'],
-        'last_updated': cache_data['timestamp'],
-        'trend_value': cache_data.get('trend_value', 0)
+        'avg_ms': data['avg_ms'],
+        'last_updated': data['timestamp'],
+        'trend_value': data['trend_value'],
     })

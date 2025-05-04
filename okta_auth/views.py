@@ -26,8 +26,68 @@ from okta_auth.services.token_encryption import TokenEncryptor
 logger = logging.getLogger(__name__)
 oauth_client = OktaOAuthClient()
 
+# New direct login view that doesn't use Okta redirect
 @ensure_csrf_cookie
-def login_view(request: HttpRequest) -> HttpResponse:
+def direct_login_view(request: HttpRequest) -> HttpResponse:
+    """
+    Direct login with username/password without Okta redirect
+    """
+    if request.method == 'POST':
+        username = request.POST.get('username')
+        password = request.POST.get('password')
+        
+        # Authenticate against Django's user system + Timing and Logging
+        start_time = time.time()
+        user = authenticate(request, username=username, password=password)
+        end_time = time.time()
+        elapsed_ms = round((end_time - start_time) * 1000, 2)
+
+        if user is not None:
+            # Log the authentication time
+            logger.info(f"User {user.username} authenticated successfully. authenticationElapsedTime: {elapsed_ms}")
+
+            # Log the user in
+            login(request, user)
+            
+            # Set session values needed for the application
+            request.session['okta_user_id'] = f"local_{user.id}"  # Prefix with local_ to differentiate
+            request.session['auth_time'] = int(time.time())
+            request.session['token_last_validated'] = int(time.time())
+            
+            # Generate a device ID if not present
+            if not request.session.get('device_id'):
+                request.session['device_id'] = str(uuid.uuid4())
+            
+            # Create a signed device token for token rotation security
+            device_token = get_random_string(32)
+            signer = TimestampSigner()
+            signed_device_token = signer.sign(device_token)
+            request.session['device_token'] = signed_device_token
+            
+            # Store authorization in the session
+            request.session['is_authenticated'] = True
+            request.session['auth_method'] = 'local'
+            
+            # Redirect to next URL or dashboard
+            next_url = request.POST.get('next', '/dashboard')
+            return redirect(next_url)
+        else:
+            # Authentication failed
+            logger.warning(f"Failed login attempt for username '{username}'. authenticationElapsedTime: {elapsed_ms}")
+            return render(request, 'okta_auth/login.html', {
+                'error': 'Invalid username or password',
+                'next': request.POST.get('next', '/dashboard')
+            })
+    else:
+        # GET request - show login form
+        next_url = request.GET.get('next', '/dashboard')
+        return render(request, 'okta_auth/login.html', {
+            'next': next_url
+        })
+
+# Keep the original Okta login view but rename it
+@ensure_csrf_cookie
+def okta_login_view(request: HttpRequest) -> HttpResponse:
     """
     Initiate OAuth flow with Okta
     """
@@ -53,12 +113,16 @@ def login_view(request: HttpRequest) -> HttpResponse:
     auth_url = oauth_client.get_authorization_url(state)
     return redirect(auth_url)
 
+# Original function renamed - replace login_view with direct_login_view as the primary login method
+login_view = direct_login_view
 
 @require_http_methods(['GET'])
 def oauth_callback(request: HttpRequest) -> HttpResponse:
     """
     Handle OAuth callback from Okta
     """
+    start_time = time.time()
+
     # Log information about the request for debugging
     logger.debug(f"Callback received, session ID: {request.session.session_key}")
     
@@ -218,6 +282,11 @@ def oauth_callback(request: HttpRequest) -> HttpResponse:
         login(request, user)
         logger.info(f"User {user.username} successfully authenticated")
 
+        # Measure and log the total authentication time for Okta login
+        end_time = time.time()
+        elapsed_ms = round((end_time - start_time) * 1000, 2)
+        logger.info(f"User {user.username} authenticated via Okta. authenticationElapsedTime: {elapsed_ms}")
+
         # Store Okta user ID in session for later use
         request.session['okta_user_id'] = sub
         
@@ -236,11 +305,16 @@ def oauth_callback(request: HttpRequest) -> HttpResponse:
         request.session['device_token'] = signed_device_token
         
         # Get and store average login time statistics
-        from login_tracking.metrics import get_cached_avg_login_time
+        from login_tracking.utils import get_cached_avg_login_time
         avg_login_data = get_cached_avg_login_time()
         request.session['avg_login_time'] = avg_login_data
-        
-        # Securely store tokens - encrypt with user-specific key
+        if avg_login_data and 'avg_ms' in avg_login_data:
+            logger.info(
+                f"Current average login time (1-day): {avg_login_data['avg_ms']} ms "
+                f"(trend: {avg_login_data.get('trend_value', 0)}%)"
+            )
+
+    # Securely store tokens - encrypt with user-specific key
         # This isolates tokens per user and session
         if access_token:
             request.session['access_token'] = TokenEncryptor.encrypt_token(access_token, str(user.id))

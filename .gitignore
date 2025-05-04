@@ -37,3 +37,6 @@ staticfiles/
 __pycache__/
 
 .idea/
+
+venv/
+keys/
