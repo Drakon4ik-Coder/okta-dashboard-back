@@ -24,7 +24,13 @@ from traffic_analysis.views.alert_views import (
     AlertListView,
     AlertDetailView
 )
-from traffic_analysis.views.metric_views import MetricsDashboardView
+from traffic_analysis.views.metric_views import (
+    MetricsDashboardView,
+    login_events_stats,
+    failed_login_stats,
+    security_events_stats,
+    total_events_stats
+)
 from traffic_analysis.views.report_views import ReportDashboardView
 from traffic_analysis.views.setting_views import SettingsDashboardView
 from traffic_analysis.views.diagnostic_views import mongodb_status
@@ -60,6 +66,12 @@ urlpatterns = [
     path('api/logs/statistics/', LogStatisticsAPIView.as_view(), name='log_statistics'),
     path('api/logs/comparison/', LogComparisonView.as_view(), name='log_comparison'),
     path('api/logs/trends/', log_trends, name='log_trends'),
+    
+    # Login statistics endpoint
+    path('api/statistics/login-events/', login_events_stats, name='login_events_stats'),
+    path('api/statistics/failed-logins/', failed_login_stats, name='failed_login_stats'),
+    path('api/statistics/security-events/', security_events_stats, name='security_events_stats'),
+    path('api/statistics/total-events/', total_events_stats, name='total_events_stats'),
     
     # Diagnostic endpoints
     path('api/diagnostic/mongodb-status/', mongodb_status, name='mongodb_status'),

@@ -13,6 +13,7 @@ from pymongo import MongoClient
 from django.conf import settings
 
 from traffic_analysis.models import OktaEvent, OktaMetrics
+from traffic_analysis.services.login_statistics import get_login_events_count, get_failed_login_count, get_security_events_count, get_total_events_count
 
 logger = logging.getLogger(__name__)
 
@@ -51,24 +52,21 @@ class DashboardHomeView(LoginRequiredMixin, TemplateView):
             thirty_days_ago = now - timedelta(days=30)
             seven_days_ago = now - timedelta(days=7)
             
-            # Get total count of events
-            context['total_events'] = events_collection.count_documents({})
+            # Get total count of events using our improved statistics service
+            context['total_events'] = get_total_events_count(30)
+            logger.info(f"Total events from statistics service: {context['total_events']}")
             
-            # Get login events count
-            context['login_events'] = events_collection.count_documents({
-                'event_type': {'$regex': 'user.session.start|user.authentication.sso'},
-            })
+            # Get login events count using our improved statistics service
+            context['login_events'] = get_login_events_count(30)
+            logger.info(f"Login events from statistics service: {context['login_events']}")
             
-            # Get failed login attempts
-            context['failed_events'] = events_collection.count_documents({
-                'event_type': {'$regex': 'user.authentication'},
-                'outcome.result': 'FAILURE'
-            })
+            # Get failed login attempts using our improved statistics service
+            context['failed_events'] = get_failed_login_count(30)
+            logger.info(f"Failed login events from statistics service: {context['failed_events']}")
             
-            # Get security events count
-            context['security_events'] = events_collection.count_documents({
-                'event_type': {'$regex': 'security|threat'},
-            })
+            # Get security events count using our improved statistics service
+            context['security_events'] = get_security_events_count(30)
+            logger.info(f"Security events from statistics service: {context['security_events']}")
             
             # Get recent events for display (limit to 10)
             recent_events = list(events_collection.find(
