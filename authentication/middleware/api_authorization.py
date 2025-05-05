@@ -50,6 +50,13 @@ class APIAuthorizationMiddleware(MiddlewareMixin):
             '/api/statistics/failed-logins/',
             '/api/statistics/security-events/',
             '/api/statistics/total-events/',  # Added total events endpoint to exemptions
+            '/api/statistics/devices/',
+            '/api/statistics/browsers/',
+            '/api/statistics/operating-systems/',
+            '/api/statistics/applications/', 
+            '/api/statistics/locations/', 
+            '/api/statistics/outcomes/', 
+            '/api/statistics/all/'
         ]
         
     def process_request(self, request):

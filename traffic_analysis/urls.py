@@ -34,6 +34,15 @@ from traffic_analysis.views.metric_views import (
 from traffic_analysis.views.report_views import ReportDashboardView
 from traffic_analysis.views.setting_views import SettingsDashboardView
 from traffic_analysis.views.diagnostic_views import mongodb_status
+from traffic_analysis.views.statistics_views import (
+    DeviceStatisticsView,
+    BrowserStatisticsView,
+    OSStatisticsView,
+    ApplicationStatisticsView,
+    LocationStatisticsView,
+    OutcomeStatisticsView,
+    AllStatisticsView
+)
 
 app_name = "traffic_analysis"
 
@@ -73,6 +82,15 @@ urlpatterns = [
     path('api/statistics/failed-logins/', failed_login_stats, name='failed_login_stats'),
     path('api/statistics/security-events/', security_events_stats, name='security_events_stats'),
     path('api/statistics/total-events/', total_events_stats, name='total_events_stats'),
+    
+    # New device and application statistics endpoints
+    path('api/statistics/devices/', DeviceStatisticsView.as_view(), name='device_statistics'),
+    path('api/statistics/browsers/', BrowserStatisticsView.as_view(), name='browser_statistics'),
+    path('api/statistics/operating-systems/', OSStatisticsView.as_view(), name='os_statistics'),
+    path('api/statistics/applications/', ApplicationStatisticsView.as_view(), name='application_statistics'),
+    path('api/statistics/locations/', LocationStatisticsView.as_view(), name='location_statistics'),
+    path('api/statistics/outcomes/', OutcomeStatisticsView.as_view(), name='outcome_statistics'),
+    path('api/statistics/all/', AllStatisticsView.as_view(), name='all_statistics'),
     
     # Diagnostic endpoints
     path('api/diagnostic/mongodb-status/', mongodb_status, name='mongodb_status'),
