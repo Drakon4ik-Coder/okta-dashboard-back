@@ -14,7 +14,7 @@ def okta_login_time(request):
     avg = compute_avg_okta_login_time_from_mongo(days)
     if avg is None:
         return Response({'avg_login_time_sec': None, 'message': 'No valid login events found.'}, status=204)
-    return Response({'avg_login_time_sec': avg})
+    return Response({'avg_login_time_ms': avg})
 
 @api_view(['GET'])
 @permission_classes([AllowAny])

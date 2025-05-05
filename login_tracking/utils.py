@@ -1,5 +1,5 @@
 import logging
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 import os
 import re
 import time
@@ -24,7 +24,6 @@ def parse_login_times_from_log(days: int = 1):
     times = []
 
     try:
-        # Using 'errors="replace"' to handle encoding issues by replacing invalid characters
         with open(LOG_FILE_PATH, 'r', encoding='utf-8', errors='replace') as f:
             for line in f:
                 timestamp_match = timestamp_pattern.search(line)
@@ -37,19 +36,14 @@ def parse_login_times_from_log(days: int = 1):
                         continue  # Skip lines with malformed timestamp
 
                 elapsed_match = elapsed_time_pattern.search(line)
-
-                # Only process lines that show successful authentication
                 if "authenticated successfully" in line and elapsed_match:
                     try:
                         times.append(float(elapsed_match.group(1)))
                     except ValueError:
                         continue  # Skip if value isn't a proper float
     except FileNotFoundError:
-        # If log file doesn't exist, return empty list
         return []
     except Exception as e:
-        # Log other errors but continue with empty list
-        import logging
         logger = logging.getLogger(__name__)
         logger.error(f"Error reading login times from log: {str(e)}")
         return []
@@ -113,7 +107,6 @@ def calculate_total_login_events(days: int = 30) -> int:
         Total count of login events
     """
     try:
-        # Check cache first to avoid frequent database queries
         cache_key = f"{TOTAL_LOGIN_EVENTS_CACHE_KEY}_{days}"
         cached_data = cache.get(cache_key)
         if cached_data is not None:
@@ -141,41 +134,52 @@ def calculate_total_login_events(days: int = 30) -> int:
         
         return total_count
     except Exception as e:
-        # Log the error but don't crash
-        import logging
         logger = logging.getLogger(__name__)
         logger.error(f"Error calculating total login events: {str(e)}")
         return 0
 
-def compute_avg_okta_login_time_from_mongo(days=1):
+
+def compute_avg_okta_login_time_from_mongo(days: int = 1) -> float | None:
+    """Average time (ms) from first authentication event to session start, grouped by rootSessionId."""
     db = DatabaseService().get_collection(settings.MONGODB_SETTINGS['db'], 'okta_logs')
     cutoff = datetime.utcnow() - timedelta(days=days)
 
-    query_filter = {
-        "eventType": {"$in": ["app.oauth2.authorize.code", "user.session.start"]},
-        "outcome.result": "SUCCESS",
-        "_published_date": {"$gte": cutoff}
-    }
+    cursor = db.find({
+        'published': {'$gte': cutoff.isoformat() + 'Z'},
+        'eventType': {'$in': [
+            'user.authentication.auth_via_mfa',
+            'user.authentication.sso',
+            'user.session.start'
+        ]}
+    }, {
+        'authenticationContext.rootSessionId': 1,
+        'eventType': 1,
+        'published': 1
+    }).sort([
+        ('authenticationContext.rootSessionId', 1),
+        ('published', 1)
+    ])
 
-    logs = list(db.find(query_filter).sort([("actor.id", 1), ("_published_date", 1)]))
-
-    last_auth_time = {}
+    sessions = {}
     durations = []
-
-    for log in logs:
-        actor_id = log.get("actor", {}).get("id")
-        ts = log.get("_published_date")
-
-        if not actor_id or not ts:
+    for log in cursor:
+        sid = log.get('authenticationContext', {}).get('rootSessionId')
+        et = log.get('eventType')
+        ts_str = log.get('published')
+        if not sid or not ts_str:
+            continue
+        try:
+            ts = datetime.fromisoformat(ts_str.replace('Z', '+00:00'))
+        except ValueError:
             continue
 
-        if log["eventType"] == "app.oauth2.authorize.code":
-            last_auth_time[actor_id] = ts
-        elif log["eventType"] == "user.session.start" and actor_id in last_auth_time:
-            delta = (ts - last_auth_time[actor_id]).total_seconds() * 1000
-            if 0 < delta <= 300000:
+        if et in ('user.authentication.auth_via_mfa', 'user.authentication.sso'):
+            if sid not in sessions:
+                sessions[sid] = ts
+        elif et == 'user.session.start' and sid in sessions:
+            delta = (ts - sessions.pop(sid)).total_seconds() * 1000
+            if 0 < delta <= 300_000:
                 durations.append(delta)
-            last_auth_time.pop(actor_id, None)
 
     return round(sum(durations) / len(durations), 2) if durations else None
 
@@ -192,26 +196,14 @@ def calculate_and_cache_okta_avg_login_time(days: int = 1) -> Dict[str, Any]:
     current_avg = compute_avg_okta_login_time_from_mongo(days)
 
     if current_avg is None:
-        return {"avg_ms": None, "trend_value": None, "message": "No valid login pairs"}
+        return {'avg_ms': None, 'trend_value': None, 'message': 'No valid login pairs'}
 
-    # Save current value in cache
-    cache.set("okta_avg_login_time", {
-        "avg_ms": current_avg,
-        "timestamp": int(time.time())
-    }, timeout=3600)
-
-    # Load previous value
-    previous_avg = cache.get("okta_previous_avg_login_time")
-
-    # Store current as "previous" for next cycle
-    cache.set("okta_previous_avg_login_time", current_avg, timeout=86400)
+    cache.set('okta_avg_login_time', {'avg_ms': current_avg, 'timestamp': int(time.time())}, timeout=3600)
+    prev = cache.get('okta_previous_avg_login_time')
+    cache.set('okta_previous_avg_login_time', current_avg, timeout=86400)
 
     trend = 0.0
-    if previous_avg:
-        trend = round(((current_avg - previous_avg) / previous_avg) * 100, 2)
+    if prev:
+        trend = round(((current_avg - prev) / prev) * 100, 2)
 
-    return {
-        "avg_ms": current_avg,
-        "trend_value": trend,
-        "timestamp": int(time.time())
-    }
+    return {'avg_ms': current_avg, 'trend_value': trend, 'timestamp': int(time.time())}

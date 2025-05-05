@@ -50,6 +50,7 @@ class APIAuthorizationMiddleware(MiddlewareMixin):
             '/api/statistics/failed-logins/',
             '/api/statistics/security-events/',
             '/api/statistics/total-events/',  # Added total events endpoint to exemptions
+            '/api/statistics/avg-login-time',
         ]
         
     def process_request(self, request):
