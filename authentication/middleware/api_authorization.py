@@ -53,10 +53,11 @@ class APIAuthorizationMiddleware(MiddlewareMixin):
             '/api/statistics/devices/',
             '/api/statistics/browsers/',
             '/api/statistics/operating-systems/',
-            '/api/statistics/applications/', 
-            '/api/statistics/locations/', 
-            '/api/statistics/outcomes/', 
-            '/api/statistics/all/'
+            '/api/statistics/applications/',
+            '/api/statistics/locations/',
+            '/api/statistics/outcomes/',
+            '/api/statistics/all/',
+            '/api/statistics/avg-login-time',
         ]
         
     def process_request(self, request):

@@ -1,3 +1,5 @@
+import logging
+from typing import Dict, Any
 import os
 import re
 import time
@@ -22,7 +24,6 @@ def parse_login_times_from_log(days: int = 1):
     times = []
 
     try:
-        # Using 'errors="replace"' to handle encoding issues by replacing invalid characters
         with open(LOG_FILE_PATH, 'r', encoding='utf-8', errors='replace') as f:
             for line in f:
                 timestamp_match = timestamp_pattern.search(line)
@@ -35,19 +36,14 @@ def parse_login_times_from_log(days: int = 1):
                         continue  # Skip lines with malformed timestamp
 
                 elapsed_match = elapsed_time_pattern.search(line)
-
-                # Only process lines that show successful authentication
                 if "authenticated successfully" in line and elapsed_match:
                     try:
                         times.append(float(elapsed_match.group(1)))
                     except ValueError:
                         continue  # Skip if value isn't a proper float
     except FileNotFoundError:
-        # If log file doesn't exist, return empty list
         return []
     except Exception as e:
-        # Log other errors but continue with empty list
-        import logging
         logger = logging.getLogger(__name__)
         logger.error(f"Error reading login times from log: {str(e)}")
         return []
@@ -111,7 +107,6 @@ def calculate_total_login_events(days: int = 30) -> int:
         Total count of login events
     """
     try:
-        # Check cache first to avoid frequent database queries
         cache_key = f"{TOTAL_LOGIN_EVENTS_CACHE_KEY}_{days}"
         cached_data = cache.get(cache_key)
         if cached_data is not None:
@@ -139,8 +134,76 @@ def calculate_total_login_events(days: int = 30) -> int:
         
         return total_count
     except Exception as e:
-        # Log the error but don't crash
-        import logging
         logger = logging.getLogger(__name__)
         logger.error(f"Error calculating total login events: {str(e)}")
         return 0
+
+
+def compute_avg_okta_login_time_from_mongo(days: int = 1) -> float | None:
+    """Average time (ms) from first authentication event to session start, grouped by rootSessionId."""
+    db = DatabaseService().get_collection(settings.MONGODB_SETTINGS['db'], 'okta_logs')
+    cutoff = datetime.utcnow() - timedelta(days=days)
+
+    cursor = db.find({
+        'published': {'$gte': cutoff.isoformat() + 'Z'},
+        'eventType': {'$in': [
+            'user.authentication.auth_via_mfa',
+            'user.authentication.sso',
+            'user.session.start'
+        ]}
+    }, {
+        'authenticationContext.rootSessionId': 1,
+        'eventType': 1,
+        'published': 1
+    }).sort([
+        ('authenticationContext.rootSessionId', 1),
+        ('published', 1)
+    ])
+
+    sessions = {}
+    durations = []
+    for log in cursor:
+        sid = log.get('authenticationContext', {}).get('rootSessionId')
+        et = log.get('eventType')
+        ts_str = log.get('published')
+        if not sid or not ts_str:
+            continue
+        try:
+            ts = datetime.fromisoformat(ts_str.replace('Z', '+00:00'))
+        except ValueError:
+            continue
+
+        if et in ('user.authentication.auth_via_mfa', 'user.authentication.sso'):
+            if sid not in sessions:
+                sessions[sid] = ts
+        elif et == 'user.session.start' and sid in sessions:
+            delta = (ts - sessions.pop(sid)).total_seconds() * 1000
+            if 0 < delta <= 300_000:
+                durations.append(delta)
+
+    return round(sum(durations) / len(durations), 2) if durations else None
+
+def calculate_and_cache_okta_avg_login_time(days: int = 1) -> Dict[str, Any]:
+    """
+    Calculate average Okta login time and store it in cache with trend tracking.
+
+    Args:
+        days: Lookback period for calculation.
+
+    Returns:
+        Dict containing current average, previous average, and trend.
+    """
+    current_avg = compute_avg_okta_login_time_from_mongo(days)
+
+    if current_avg is None:
+        return {'avg_ms': None, 'trend_value': None, 'message': 'No valid login pairs'}
+
+    cache.set('okta_avg_login_time', {'avg_ms': current_avg, 'timestamp': int(time.time())}, timeout=3600)
+    prev = cache.get('okta_previous_avg_login_time')
+    cache.set('okta_previous_avg_login_time', current_avg, timeout=86400)
+
+    trend = 0.0
+    if prev:
+        trend = round(((current_avg - prev) / prev) * 100, 2)
+
+    return {'avg_ms': current_avg, 'trend_value': trend, 'timestamp': int(time.time())}
