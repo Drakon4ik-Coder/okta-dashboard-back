@@ -68,6 +68,17 @@ class DatabaseService:
                 mongo_user = settings.MONGODB_SETTINGS.get('username')
                 mongo_pass = settings.MONGODB_SETTINGS.get('password')
                 
+                # Log authentication configuration (without printing actual password)
+                logger.debug(f"MongoDB Configuration: host={mongo_host}, port={mongo_port}, db={mongo_db}, user={'***' if mongo_pass else 'None'}")
+                
+                # Additional check for empty strings
+                if mongo_user == '':
+                    logger.warning("MongoDB username is an empty string")
+                    mongo_user = None
+                if mongo_pass == '':
+                    logger.warning("MongoDB password is an empty string")
+                    mongo_pass = None
+                
                 # Build connection URL
                 if mongo_user and mongo_pass:
                     auth_part = f"{mongo_user}:{mongo_pass}@"
@@ -95,7 +106,11 @@ class DatabaseService:
                     params.append(f"{key}={value}")
                 mongo_url += '&'.join(params)
                 
-            logger.debug(f"Connecting to MongoDB with optimized connection pool")
+            # Log the connection URL without credentials for debugging
+            safe_url = mongo_url
+            if '@' in safe_url:
+                safe_url = 'mongodb://' + safe_url.split('@')[1]
+            logger.debug(f"Connecting to MongoDB with URL: {safe_url}")
             
             # Create MongoClient instance with connection pooling
             self._client = MongoClient(mongo_url)

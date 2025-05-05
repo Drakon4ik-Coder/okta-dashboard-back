@@ -9,11 +9,11 @@ from django.shortcuts import render
 from django.views.generic import TemplateView
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.utils import timezone
-from pymongo import MongoClient
 from django.conf import settings
 
 from traffic_analysis.models import OktaEvent, OktaMetrics
 from traffic_analysis.services.login_statistics import get_login_events_count, get_failed_login_count, get_security_events_count, get_total_events_count
+from OktaDashboardBackend.services.database import DatabaseService
 
 logger = logging.getLogger(__name__)
 
@@ -27,25 +27,23 @@ class DashboardHomeView(LoginRequiredMixin, TemplateView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         
-        # Connect to MongoDB directly for more efficient aggregation queries
+        # Use the DatabaseService singleton for MongoDB connection
         try:
-            # Get MongoDB connection details from settings
-            mongo_host = settings.MONGODB_SETTINGS.get('host', 'localhost')
-            mongo_port = settings.MONGODB_SETTINGS.get('port', 27017)
+            # Get the database service instance
+            db_service = DatabaseService()
+            
+            if not db_service.is_connected():
+                logger.warning("Database not connected. Attempting to reconnect...")
+                db_service.connect()
+            
+            # Get MongoDB client
+            client = db_service.get_client()
             mongo_db = settings.MONGODB_SETTINGS.get('db', 'OktaDashboardDB')
-            mongo_user = settings.MONGODB_SETTINGS.get('username')
-            mongo_pass = settings.MONGODB_SETTINGS.get('password')
-            
-            # Create connection string
-            connection_string = f"mongodb://"
-            if mongo_user and mongo_pass:
-                connection_string += f"{mongo_user}:{mongo_pass}@"
-            connection_string += f"{mongo_host}:{mongo_port}/{mongo_db}"
-            
-            # Connect to MongoDB
-            client = MongoClient(connection_string)
             db = client[mongo_db]
             events_collection = db.okta_events
+            
+            # Log connection status
+            logger.info(f"MongoDB connection status: {db_service.is_connected()}")
             
             # Calculate time ranges
             now = timezone.now()
