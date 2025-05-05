@@ -103,8 +103,7 @@
             <button class="filter-btn active" data-period="7d">Last 7 Days</button>
             <button class="filter-btn" data-period="14d">Last 14 Days</button>
             <button class="filter-btn" data-period="30d">Last 30 Days</button>
-            <button class="filter-btn" data-period="90d">Last 90 Days</button>
-            <button class="filter-btn" data-period="custom">Custom Range</button>
+            <button class="filter-btn" data-period="90d">Custom Range</button>
         </div>
 
         <!-- Stats Overview -->
@@ -376,11 +375,43 @@
                     </div>
                     <div class="card-body">
                         <div class="row text-center">
+                            {% with auth_methods_list=auth_methods.items|dictsort:"-1"|slice:":3" %}
+                            {% for method, count in auth_methods_list %}
+                            <div class="col-4">
+                                <div class="metric-gauge">
+                                    <div class="gauge-chart">
+                                        <canvas id="mfaGauge{{ forloop.counter }}"></canvas>
+                                        <div class="gauge-value" id="mfa-gauge-value-{{ forloop.counter }}">
+                                            {% if method %}
+                                                0%
+                                            {% else %}
+                                                0%
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                    <div class="gauge-label" id="mfa-gauge-label-{{ forloop.counter }}">
+                                        {% if method == "OTP" %}
+                                            Authenticator App
+                                        {% elif method == "PASSWORD" %}
+                                            Password
+                                        {% elif method == "SMS" %}
+                                            SMS
+                                        {% elif method == "EMAIL" %}
+                                            Email
+                                        {% elif method == "WEBAUTHN" %}
+                                            Security Key
+                                        {% else %}
+                                            {{ method|default:"Unknown" }}
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                            {% empty %}
                             <div class="col-4">
                                 <div class="metric-gauge">
                                     <div class="gauge-chart">
                                         <canvas id="mfaGauge1"></canvas>
-                                        <div class="gauge-value">67%</div>
+                                        <div class="gauge-value">0%</div>
                                     </div>
                                     <div class="gauge-label">Authenticator App</div>
                                 </div>
@@ -389,7 +420,7 @@
                                 <div class="metric-gauge">
                                     <div class="gauge-chart">
                                         <canvas id="mfaGauge2"></canvas>
-                                        <div class="gauge-value">23%</div>
+                                        <div class="gauge-value">0%</div>
                                     </div>
                                     <div class="gauge-label">SMS</div>
                                 </div>
@@ -398,11 +429,13 @@
                                 <div class="metric-gauge">
                                     <div class="gauge-chart">
                                         <canvas id="mfaGauge3"></canvas>
-                                        <div class="gauge-value">10%</div>
+                                        <div class="gauge-value">0%</div>
                                     </div>
                                     <div class="gauge-label">Security Key</div>
                                 </div>
                             </div>
+                            {% endfor %}
+                            {% endwith %}
                         </div>
                         <div class="mt-4">
                             <h6>MFA Adoption Trend</h6>
@@ -774,39 +807,69 @@
             });
         }
 
-        // Initialize MFA gauge charts with actual data or fallback to demo data
-        {% if auth_methods.PASSWORD %}
-        const passwordPercentage = Math.round(({{ auth_methods.PASSWORD }} / (
-            {% for method, count in auth_methods.items %}{{ count }}{% if not forloop.last %} + {% endif %}{% endfor %}
-        )) * 100);
-        {% else %}
-        const passwordPercentage = 65;
-        {% endif %}
-
-        {% if auth_methods.OTP %}
-        const otpPercentage = Math.round(({{ auth_methods.OTP }} / (
-            {% for method, count in auth_methods.items %}{{ count }}{% if not forloop.last %} + {% endif %}{% endfor %}
-        )) * 100);
-        {% else %}
-        const otpPercentage = 23;
-        {% endif %}
-
-        {% if auth_methods.SMS %}
-        const smsPercentage = Math.round(({{ auth_methods.SMS }} / (
-            {% for method, count in auth_methods.items %}{{ count }}{% if not forloop.last %} + {% endif %}{% endfor %}
-        )) * 100);
-        {% else %}
-        const smsPercentage = 10;
-        {% endif %}
-
-        const mfaGauge1 = createGaugeChart(document.getElementById('mfaGauge1').getContext('2d'), passwordPercentage, '#00ED64');
-        const mfaGauge2 = createGaugeChart(document.getElementById('mfaGauge2').getContext('2d'), otpPercentage, '#0D6EFD');
-        const mfaGauge3 = createGaugeChart(document.getElementById('mfaGauge3').getContext('2d'), smsPercentage, '#FFCA28');
-
-        // Update the gauge values in the HTML
-        document.querySelector('#mfaGauge1 + .gauge-value').textContent = passwordPercentage + '%';
-        document.querySelector('#mfaGauge2 + .gauge-value').textContent = otpPercentage + '%';
-        document.querySelector('#mfaGauge3 + .gauge-value').textContent = smsPercentage + '%';
+        // Calculate total MFA usage
+        const mfaMethods = {
+            {% for method, count in auth_methods.items %}
+                "{{ method }}": {{ count }},
+            {% endfor %}
+        };
+        
+        const totalMfaUsage = Object.values(mfaMethods).reduce((sum, count) => sum + count, 0);
+        
+        // Process the top 3 MFA methods
+        const mfaColors = ['#00ED64', '#0D6EFD', '#FFCA28'];
+        let mfaGauges = [];
+        
+        // Sort the MFA methods by count and take the top 3
+        const sortedMethods = Object.entries(mfaMethods)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 3);
+            
+        // Create gauge charts for each of the top 3 methods
+        sortedMethods.forEach((methodData, index) => {
+            const method = methodData[0];
+            const count = methodData[1];
+            const percentage = totalMfaUsage > 0 ? Math.round((count / totalMfaUsage) * 100) : 0;
+            
+            // Get the gauge element and value element
+            const gaugeCanvas = document.getElementById(`mfaGauge${index + 1}`);
+            const gaugeValue = document.getElementById(`mfa-gauge-value-${index + 1}`);
+            const gaugeLabel = document.getElementById(`mfa-gauge-label-${index + 1}`);
+            
+            // If we have the gauge elements, update them
+            if (gaugeCanvas && gaugeValue) {
+                // Create the gauge chart
+                mfaGauges.push(createGaugeChart(gaugeCanvas.getContext('2d'), percentage, mfaColors[index]));
+                
+                // Update the value display
+                gaugeValue.textContent = `${percentage}%`;
+                
+                // Format the method name for display if needed
+                if (gaugeLabel) {
+                    let displayName = method;
+                    if (method === "OTP") displayName = "Authenticator App";
+                    else if (method === "PASSWORD") displayName = "Password";
+                    else if (method === "SMS") displayName = "SMS";
+                    else if (method === "EMAIL") displayName = "Email";
+                    else if (method === "WEBAUTHN") displayName = "Security Key";
+                    
+                    gaugeLabel.textContent = displayName;
+                }
+            }
+        });
+        
+        // If we don't have any MFA data or less than 3 methods, fill in with defaults
+        if (sortedMethods.length === 0) {
+            // Create default gauge charts if no data
+            mfaGauges.push(createGaugeChart(document.getElementById('mfaGauge1').getContext('2d'), 0, mfaColors[0]));
+            mfaGauges.push(createGaugeChart(document.getElementById('mfaGauge2').getContext('2d'), 0, mfaColors[1]));
+            mfaGauges.push(createGaugeChart(document.getElementById('mfaGauge3').getContext('2d'), 0, mfaColors[2]));
+            
+            // Update labels
+            document.querySelector('#mfaGauge1 + .gauge-value').textContent = '0%';
+            document.querySelector('#mfaGauge2 + .gauge-value').textContent = '0%';
+            document.querySelector('#mfaGauge3 + .gauge-value').textContent = '0%';
+        }
 
         // MFA Adoption Chart
         const mfaAdoptionCtx = document.getElementById('mfaAdoptionChart').getContext('2d');
