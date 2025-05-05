@@ -46,6 +46,7 @@ urlpatterns = [
     
     # HTML UI endpoints
     path('events/', EventsPageView.as_view(), name='events_page'),
+    path('events/detail/<str:event_id>/', EventDetailView.as_view(), name='event_detail_page'),
     path('logs/', LogDashboardView.as_view(), name='logs_dashboard'),
     path('users/', UserDashboardView.as_view(), name='users_dashboard'),
     path('alerts/', AlertDashboardView.as_view(), name='alerts_dashboard'),
