@@ -1,3 +1,5 @@
+import logging
+from typing import Dict, Any, Optional
 import os
 import re
 import time
@@ -144,3 +146,72 @@ def calculate_total_login_events(days: int = 30) -> int:
         logger = logging.getLogger(__name__)
         logger.error(f"Error calculating total login events: {str(e)}")
         return 0
+
+def compute_avg_okta_login_time_from_mongo(days=1):
+    db = DatabaseService().get_collection(settings.MONGODB_SETTINGS['db'], 'okta_logs')
+    cutoff = datetime.utcnow() - timedelta(days=days)
+
+    query_filter = {
+        "eventType": {"$in": ["app.oauth2.authorize.code", "user.session.start"]},
+        "outcome.result": "SUCCESS",
+        "_published_date": {"$gte": cutoff}
+    }
+
+    logs = list(db.find(query_filter).sort([("actor.id", 1), ("_published_date", 1)]))
+
+    last_auth_time = {}
+    durations = []
+
+    for log in logs:
+        actor_id = log.get("actor", {}).get("id")
+        ts = log.get("_published_date")
+
+        if not actor_id or not ts:
+            continue
+
+        if log["eventType"] == "app.oauth2.authorize.code":
+            last_auth_time[actor_id] = ts
+        elif log["eventType"] == "user.session.start" and actor_id in last_auth_time:
+            delta = (ts - last_auth_time[actor_id]).total_seconds() * 1000
+            if 0 < delta <= 300000:
+                durations.append(delta)
+            last_auth_time.pop(actor_id, None)
+
+    return round(sum(durations) / len(durations), 2) if durations else None
+
+def calculate_and_cache_okta_avg_login_time(days: int = 1) -> Dict[str, Any]:
+    """
+    Calculate average Okta login time and store it in cache with trend tracking.
+
+    Args:
+        days: Lookback period for calculation.
+
+    Returns:
+        Dict containing current average, previous average, and trend.
+    """
+    current_avg = compute_avg_okta_login_time_from_mongo(days)
+
+    if current_avg is None:
+        return {"avg_ms": None, "trend_value": None, "message": "No valid login pairs"}
+
+    # Save current value in cache
+    cache.set("okta_avg_login_time", {
+        "avg_ms": current_avg,
+        "timestamp": int(time.time())
+    }, timeout=3600)
+
+    # Load previous value
+    previous_avg = cache.get("okta_previous_avg_login_time")
+
+    # Store current as "previous" for next cycle
+    cache.set("okta_previous_avg_login_time", current_avg, timeout=86400)
+
+    trend = 0.0
+    if previous_avg:
+        trend = round(((current_avg - previous_avg) / previous_avg) * 100, 2)
+
+    return {
+        "avg_ms": current_avg,
+        "trend_value": trend,
+        "timestamp": int(time.time())
+    }
