@@ -25,6 +25,8 @@ from django.views.generic import ListView
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db.models import Count, Q
 from traffic_analysis.services.event_service import EventService
+from OktaDashboardBackend.services.database import DatabaseService
+from django.conf import settings
 
 logger = logging.getLogger(__name__)
 
@@ -58,32 +60,89 @@ class EventsPageView(LoginRequiredMixin, ListView):
         # Calculate date range
         end_date = datetime.now()
         start_date = end_date - timedelta(days=days)
+        start_date_iso = start_date.isoformat() + 'Z'  # MongoDB uses ISO format with Z
         
-        # Base queryset with time range
-        queryset = OktaEvent.get_events_by_timeframe(start_date, end_date)
+        # Connect to MongoDB
+        db_service = DatabaseService()
+        db_name = settings.MONGODB_SETTINGS.get('db', 'okta_dashboard')
+        logs_collection = db_service.get_collection(db_name, 'okta_logs')
+        
+        # Base query with time range
+        query = {'published': {'$gte': start_date_iso}}
         
         # Apply additional filters if provided
         if event_type:
-            queryset = queryset.filter(event_type=event_type)
+            query['eventType'] = event_type
         
         if severity:
-            queryset = queryset.filter(severity=severity)
+            query['severity'] = severity
         
         if search:
-            queryset = queryset.filter(
-                Q(event_type__icontains=search) |
-                Q(display_message__icontains=search) |
-                Q(ip_address__icontains=search)
-            )
+            # For text search we need to use $or with different fields
+            query['$or'] = [
+                {'eventType': {'$regex': search, '$options': 'i'}},
+                {'displayMessage': {'$regex': search, '$options': 'i'}},
+                {'client.ipAddress': {'$regex': search, '$options': 'i'}}
+            ]
         
-        return queryset.order_by('-published')
+        # Execute query, sort by published date descending
+        cursor = logs_collection.find(query).sort('published', -1)
+        
+        # Convert MongoDB documents to a list of dictionaries
+        events = list(cursor)
+        
+        # Process and transform each event document to match template expectations
+        for event in events:
+            # Extract IP address from client field if it exists
+            if 'client' in event and event['client'] and 'ipAddress' in event['client']:
+                event['ip_address'] = event['client']['ipAddress']
+            else:
+                event['ip_address'] = 'N/A'
+            
+            # Format the published date
+            if 'published' in event:
+                try:
+                    # Parse ISO format timestamp
+                    timestamp = datetime.fromisoformat(event['published'].replace('Z', '+00:00'))
+                    event['published_formatted'] = timestamp.strftime('%Y-%m-%d %H:%M:%S')
+                except Exception as e:
+                    logger.error(f"Error formatting date: {e}")
+                    event['published_formatted'] = event['published']
+            
+            # Ensure actor related fields are properly accessible
+            if 'actor' in event:
+                if 'alternateId' in event['actor'] and 'alternate_id' not in event['actor']:
+                    event['actor']['alternate_id'] = event['actor']['alternateId']
+                if 'displayName' in event['actor'] and 'display_name' not in event['actor']:
+                    event['actor']['display_name'] = event['actor']['displayName']
+            
+            # Ensure displayMessage is accessible as display_message
+            if 'displayMessage' in event and 'display_message' not in event:
+                event['display_message'] = event['displayMessage']
+            
+            # Transform target array into individual target objects
+            if 'target' in event and isinstance(event['target'], list):
+                for i, target in enumerate(event['target']):
+                    target_key = f'target{i}'
+                    event[target_key] = target
+                    # Map camelCase to snake_case for target fields
+                    if 'alternateId' in target and 'alternate_id' not in target:
+                        event[target_key]['alternate_id'] = target['alternateId']
+                    if 'displayName' in target and 'display_name' not in target:
+                        event[target_key]['display_name'] = target['displayName']
+            
+            # Ensure client fields are properly mapped
+            if 'client' in event and event['client']:
+                if 'geographicalContext' in event['client'] and 'geographical_context' not in event['client']:
+                    event['client']['geographical_context'] = event['client']['geographicalContext']
+                if 'userAgent' in event['client'] and 'user_agent' not in event['client']:
+                    event['client']['user_agent'] = event['client']['userAgent']
+        
+        return events
     
     def get_context_data(self, **kwargs):
         """Add extra context data for template rendering"""
         context = super().get_context_data(**kwargs)
-        
-        # Get all events for statistics (with same filters except pagination)
-        queryset = self.get_queryset()
         
         # Get filter parameters to add to context
         context['selected_event_type'] = self.request.GET.get('event_type', '')
@@ -93,9 +152,10 @@ class EventsPageView(LoginRequiredMixin, ListView):
         context['date_range_days'] = context['days']
         
         # Add statistics for the filter results
-        context['total_events'] = queryset.count()
-        context['high_severity_count'] = queryset.filter(severity='HIGH').count()
-        context['medium_severity_count'] = queryset.filter(severity='MEDIUM').count()
+        queryset = self.get_queryset()
+        context['total_events'] = len(queryset)
+        context['high_severity_count'] = len([event for event in queryset if event.get('severity') == 'HIGH'])
+        context['medium_severity_count'] = len([event for event in queryset if event.get('severity') == 'MEDIUM'])
         
         # Get available filter options
         service = EventService()

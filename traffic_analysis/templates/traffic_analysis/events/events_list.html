@@ -239,7 +239,7 @@
                             {% for event in events %}
                             <tr>
                                 <td>
-                                    <div class="event-type">{{ event.event_type|truncatechars:25 }}</div>
+                                    <div class="event-type">{{ event.eventType|truncatechars:25 }}</div>
                                 </td>
                                 <td>
                                     {% if event.severity == 'HIGH' %}
@@ -254,15 +254,15 @@
                                 </td>
                                 <td>
                                     <div class="event-time">
-                                        {{ event.published|date:"M d, Y" }} at {{ event.published|date:"H:i" }}
+                                        {{ event.published_formatted }}
                                     </div>
                                 </td>
                                 <td>{{ event.ip_address|default:"N/A" }}</td>
                                 <td>
-                                    {% if event.actor.alternateId %}
-                                        {{ event.actor.alternateId }}
+                                    {% if event.actor.alternate_id %}
+                                        {{ event.actor.alternate_id }}
                                     {% else %}
-                                        {{ event.actor.displayName|default:"System" }}
+                                        {{ event.actor.display_name|default:"System" }}
                                     {% endif %}
                                 </td>
                                 <td>
@@ -275,105 +275,11 @@
                                     {% endif %}
                                 </td>
                                 <td>
-                                    <button class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#eventModal{{ event.event_id|slugify }}">
+                                    <a href="/events/detail/{{ event.uuid }}" class="btn btn-sm btn-outline-primary">
                                         <i class="fas fa-eye"></i> View
-                                    </button>
+                                    </a>
                                 </td>
                             </tr>
-                            
-                            <!-- Modal for each event -->
-                            <div class="modal fade" id="eventModal{{ event.event_id|slugify }}" tabindex="-1" aria-hidden="true">
-                                <div class="modal-dialog modal-lg">
-                                    <div class="modal-content">
-                                        <div class="modal-header">
-                                            <h5 class="modal-title">Event Details: {{ event.event_type }}</h5>
-                                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                                        </div>
-                                        <div class="modal-body p-0">
-                                            <div class="event-detail-row">
-                                                <div class="event-detail-label">Event ID</div>
-                                                <div class="event-detail-value">{{ event.event_id }}</div>
-                                            </div>
-                                            <div class="event-detail-row">
-                                                <div class="event-detail-label">Event Type</div>
-                                                <div class="event-detail-value">{{ event.event_type }}</div>
-                                            </div>
-                                            <div class="event-detail-row">
-                                                <div class="event-detail-label">Published</div>
-                                                <div class="event-detail-value">{{ event.published|date:"M d, Y H:i:s" }}</div>
-                                            </div>
-                                            <div class="event-detail-row">
-                                                <div class="event-detail-label">Severity</div>
-                                                <div class="event-detail-value">{{ event.severity }}</div>
-                                            </div>
-                                            <div class="event-detail-row">
-                                                <div class="event-detail-label">IP Address</div>
-                                                <div class="event-detail-value">{{ event.ip_address|default:"N/A" }}</div>
-                                            </div>
-                                            <div class="event-detail-row">
-                                                <div class="event-detail-label">User</div>
-                                                <div class="event-detail-value">
-                                                    {% if event.actor.alternateId %}
-                                                        {{ event.actor.alternateId }}
-                                                    {% else %}
-                                                        {{ event.actor.displayName|default:"System" }}
-                                                    {% endif %}
-                                                </div>
-                                            </div>
-                                            <div class="event-detail-row">
-                                                <div class="event-detail-label">Outcome</div>
-                                                <div class="event-detail-value">{{ event.outcome.result }}</div>
-                                            </div>
-                                            <div class="event-detail-row">
-                                                <div class="event-detail-label">Reason</div>
-                                                <div class="event-detail-value">{{ event.outcome.reason|default:"N/A" }}</div>
-                                            </div>
-                                            {% if event.geo_data %}
-                                            <div class="event-detail-row">
-                                                <div class="event-detail-label">Location</div>
-                                                <div class="event-detail-value">
-                                                    {{ event.geo_data.city }}, {{ event.geo_data.country }}
-                                                </div>
-                                            </div>
-                                            {% endif %}
-                                            <div class="event-detail-row">
-                                                <div class="event-detail-label">Description</div>
-                                                <div class="event-detail-value">{{ event.display_message }}</div>
-                                            </div>
-                                            {% if event.target %}
-                                            <div class="event-detail-row">
-                                                <div class="event-detail-label">Target</div>
-                                                <div class="event-detail-value">
-                                                    <ul class="list-unstyled">
-                                                        {% for target_item in event.target %}
-                                                        <li>{{ target_item.type }}: {{ target_item.displayName|default:target_item.id }}</li>
-                                                        {% endfor %}
-                                                    </ul>
-                                                </div>
-                                            </div>
-                                            {% endif %}
-                                            {% if event.client %}
-                                            <div class="event-detail-row">
-                                                <div class="event-detail-label">Client Information</div>
-                                                <div class="event-detail-value">
-                                                    <strong>Device:</strong> {{ event.client.device|default:"Unknown" }}<br/>
-                                                    <strong>Browser:</strong> {{ event.client.browser|default:"Unknown" }}<br/>
-                                                    <strong>OS:</strong> {{ event.client.os|default:"Unknown" }}
-                                                </div>
-                                            </div>
-                                            {% endif %}
-                                        </div>
-                                        <div class="modal-footer">
-                                            <button type="button" class="btn btn-outline-primary" data-bs-dismiss="modal">Close</button>
-                                            {% if event.threat_detected %}
-                                            <a href="/forensic/investigate?event_id={{ event.event_id }}" class="btn btn-danger">
-                                                <i class="fas fa-exclamation-triangle"></i> Investigate Threat
-                                            </a>
-                                            {% endif %}
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
                             {% endfor %}
                         </tbody>
                     </table>
