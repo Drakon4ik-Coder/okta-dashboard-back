@@ -227,7 +227,13 @@
                                         <div class="device-details">
                                             <div class="device-name">Desktop</div>
                                             <div class="device-stats">
-                                                <div class="device-percentage">58.4%</div>
+                                                <div class="device-percentage" id="desktop-percentage">
+                                                    {% if usage_by_device.Desktop %}
+                                                        {{ usage_by_device.Desktop }}%
+                                                    {% else %}
+                                                        0%
+                                                    {% endif %}
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
@@ -238,7 +244,13 @@
                                         <div class="device-details">
                                             <div class="device-name">Mobile</div>
                                             <div class="device-stats">
-                                                <div class="device-percentage">32.1%</div>
+                                                <div class="device-percentage" id="mobile-percentage">
+                                                    {% if usage_by_device.Mobile %}
+                                                        {{ usage_by_device.Mobile }}%
+                                                    {% else %}
+                                                        0%
+                                                    {% endif %}
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
@@ -249,7 +261,13 @@
                                         <div class="device-details">
                                             <div class="device-name">Tablet</div>
                                             <div class="device-stats">
-                                                <div class="device-percentage">5.7%</div>
+                                                <div class="device-percentage" id="tablet-percentage">
+                                                    {% if usage_by_device.Tablet %}
+                                                        {{ usage_by_device.Tablet }}%
+                                                    {% else %}
+                                                        0%
+                                                    {% endif %}
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
@@ -260,7 +278,30 @@
                                         <div class="device-details">
                                             <div class="device-name">API</div>
                                             <div class="device-stats">
-                                                <div class="device-percentage">3.8%</div>
+                                                <div class="device-percentage" id="api-percentage">
+                                                    {% if usage_by_device.API %}
+                                                        {{ usage_by_device.API }}%
+                                                    {% else %}
+                                                        0%
+                                                    {% endif %}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="device-item">
+                                        <div class="device-icon device-icon-unknown">
+                                            <i class="fas fa-question-circle fa-lg"></i>
+                                        </div>
+                                        <div class="device-details">
+                                            <div class="device-name">Unknown</div>
+                                            <div class="device-stats">
+                                                <div class="device-percentage" id="unknown-percentage">
+                                                    {% if usage_by_device.Unknown %}
+                                                        {{ usage_by_device.Unknown }}%
+                                                    {% else %}
+                                                        0%
+                                                    {% endif %}
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
@@ -592,6 +633,32 @@
                 {% endfor %}
             ]
         };
+        
+        // Calculate total device usage
+        const totalDeviceUsage = deviceData.data.reduce((sum, count) => sum + count, 0);
+        
+        // Calculate percentages for each device type
+        const devicePercentages = deviceData.data.map(count => {
+            return totalDeviceUsage > 0 ? Math.round((count / totalDeviceUsage) * 100) : 0;
+        });
+        
+        // Update the percentage displays in the HTML
+        const deviceTypes = ['desktop', 'mobile', 'tablet', 'api', 'unknown'];
+        for (let i = 0; i < deviceTypes.length; i++) {
+            const deviceType = deviceTypes[i];
+            // Find the index of this device type in the labels array (case insensitive)
+            const dataIndex = deviceData.labels.findIndex(label => 
+                label.toLowerCase() === deviceType.charAt(0).toUpperCase() + deviceType.slice(1).toLowerCase());
+            
+            if (dataIndex !== -1) {
+                const percentage = devicePercentages[dataIndex];
+                const element = document.getElementById(`${deviceType}-percentage`);
+                if (element) {
+                    element.textContent = `${percentage}%`;
+                }
+            }
+        }
+        
         const deviceChart = new Chart(deviceCtx, {
             type: 'doughnut',
             data: {
@@ -609,6 +676,16 @@
                 plugins: {
                     legend: {
                         display: false
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                const label = context.label || '';
+                                const value = context.raw || 0;
+                                const percentage = totalDeviceUsage > 0 ? Math.round((value / totalDeviceUsage) * 100) : 0;
+                                return `${label}: ${percentage}% (${value} sessions)`;
+                            }
+                        }
                     }
                 }
             }
