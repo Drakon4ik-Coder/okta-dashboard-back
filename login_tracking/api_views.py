@@ -5,16 +5,16 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny, IsAdminUser
 from rest_framework.response import Response
 from traffic_analysis.models import OktaEvent
-from .utils import compute_avg_okta_login_time, get_cached_avg_login_time, calculate_total_login_events
+from .utils import compute_avg_okta_login_time_from_mongo, get_cached_avg_login_time, calculate_total_login_events
 
 @api_view(['GET'])
 @permission_classes([IsAdminUser])
 def okta_login_time(request):
     days = int(request.query_params.get('days', 1))
-    avg = compute_avg_okta_login_time(days)
+    avg = compute_avg_okta_login_time_from_mongo(days)
     if avg is None:
-        return Response({'avg_ms': None, 'message': 'No events found.'}, status=204)
-    return Response({'avg_ms': round(avg, 1)})
+        return Response({'avg_login_time_sec': None, 'message': 'No valid login events found.'}, status=204)
+    return Response({'avg_login_time_ms': avg})
 
 @api_view(['GET'])
 @permission_classes([AllowAny])
