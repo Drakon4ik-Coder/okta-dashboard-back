@@ -29,7 +29,8 @@ from traffic_analysis.views.metric_views import (
     login_events_stats,
     failed_login_stats,
     security_events_stats,
-    total_events_stats
+    total_events_stats,
+    auth_metrics_stats
 )
 from traffic_analysis.views.report_views import ReportDashboardView
 from traffic_analysis.views.setting_views import SettingsDashboardView
@@ -82,6 +83,7 @@ urlpatterns = [
     path('api/statistics/failed-logins/', failed_login_stats, name='failed_login_stats'),
     path('api/statistics/security-events/', security_events_stats, name='security_events_stats'),
     path('api/statistics/total-events/', total_events_stats, name='total_events_stats'),
+    path('api/statistics/auth-metrics/', auth_metrics_stats, name='auth_metrics_stats'),
     
     # New device and application statistics endpoints
     path('api/statistics/devices/', DeviceStatisticsView.as_view(), name='device_statistics'),

@@ -117,12 +117,12 @@
                         </div>
                         <div>
                             <div class="stat-title">AUTH SUCCESS RATE</div>
-                            <div class="stat-value">{{ auth_success_rate }}%</div>
+                            <div class="stat-value" id="auth-success-rate">{{ auth_success_rate }}%</div>
                         </div>
                     </div>
                     <div class="stat-footer">
-                        <div class="stat-trend trend-up">
-                            <i class="fas fa-arrow-up mr-1"></i> 1.2%
+                        <div class="stat-trend" id="auth-rate-trend">
+                            <i class="fas fa-arrow-up mr-1" id="auth-rate-trend-icon"></i> 1.2%
                         </div>
                         <div class="stat-period">vs. previous period</div>
                     </div>
@@ -136,12 +136,12 @@
                         </div>
                         <div>
                             <div class="stat-title">MFA USAGE RATE</div>
-                            <div class="stat-value">{{ mfa_usage_rate }}%</div>
+                            <div class="stat-value" id="mfa-usage-rate">{{ mfa_usage_rate }}%</div>
                         </div>
                     </div>
                     <div class="stat-footer">
-                        <div class="stat-trend trend-up">
-                            <i class="fas fa-arrow-up mr-1"></i> 3.8%
+                        <div class="stat-trend" id="mfa-rate-trend">
+                            <i class="fas fa-arrow-up mr-1" id="mfa-rate-trend-icon"></i> 3.8%
                         </div>
                         <div class="stat-period">vs. previous period</div>
                     </div>
@@ -155,12 +155,12 @@
                         </div>
                         <div>
                             <div class="stat-title">AVG SESSION TIME</div>
-                            <div class="stat-value">{{ avg_session_time }}m</div>
+                            <div class="stat-value" id="avg-session-time">{{ avg_session_time }}m</div>
                         </div>
                     </div>
                     <div class="stat-footer">
-                        <div class="stat-trend trend-down">
-                            <i class="fas fa-arrow-down mr-1"></i> 2.1%
+                        <div class="stat-trend" id="session-time-trend">
+                            <i class="fas fa-arrow-down mr-1" id="session-time-trend-icon"></i> 2.1%
                         </div>
                         <div class="stat-period">vs. previous period</div>
                     </div>
@@ -174,12 +174,12 @@
                         </div>
                         <div>
                             <div class="stat-title">FAILED LOGINS</div>
-                            <div class="stat-value">254</div>
+                            <div class="stat-value" id="failed-logins-count">{{ failed_logins_count }}</div>
                         </div>
                     </div>
                     <div class="stat-footer">
-                        <div class="stat-trend trend-down">
-                            <i class="fas fa-arrow-down mr-1"></i> 5.7%
+                        <div class="stat-trend" id="failed-logins-trend">
+                            <i class="fas fa-arrow-down mr-1" id="failed-logins-trend-icon"></i> {{ failed_logins_change }}%
                         </div>
                         <div class="stat-period">vs. previous period</div>
                     </div>
@@ -464,7 +464,7 @@
                     </div>
                 </div>
                 <div class="mt-4">
-                    <p>Peak usage hour: <strong>{{ peak_usage_hour }}:00</strong> (average of 157 logins)</p>
+                    <p>Peak usage hour: <strong id="peak-hour">{{ peak_usage_hour }}:00</strong> (average of 157 logins)</p>
                     <p>Your organization shows consistent usage patterns with highest activity on weekdays between 9 AM and 11 AM local time. Weekend activity is minimal with occasional access primarily from management roles.</p>
                 </div>
             </div>
@@ -508,49 +508,55 @@
         const authActivityChart = new Chart(authActivityCtx, {
             type: 'line',
             data: {
-                labels: ['Apr 25', 'Apr 26', 'Apr 27', 'Apr 28', 'Apr 29', 'Apr 30', 'May 1'],
+                labels: {% if auth_activity.dates %}{{ auth_activity.dates|safe }}{% else %}['Feb 1', 'Feb 8', 'Feb 15', 'Feb 22', 'Mar 1', 'Mar 8', 'Mar 15', 'Mar 22']{% endif %},
                 datasets: [
                     {
-                        label: 'Successful',
-                        data: [845, 782, 901, 934, 1290, 1130, 1020],
+                        label: 'Successful Authentications',
+                        data: {% if auth_activity.success %}{{ auth_activity.success|safe }}{% else %}[423, 456, 498, 523, 489, 532, 498, 510]{% endif %},
                         borderColor: '#01C853',
                         backgroundColor: 'rgba(1, 200, 83, 0.1)',
                         tension: 0.4,
+                        fill: true,
                         pointBackgroundColor: '#01C853',
                         pointBorderColor: '#fff',
-                        pointBorderWidth: 2,
-                        pointRadius: 4,
-                        fill: true
+                        pointBorderWidth: 2
                     },
                     {
-                        label: 'Failed',
-                        data: [42, 35, 45, 32, 65, 52, 38],
-                        borderColor: '#DB3030',
-                        backgroundColor: 'rgba(219, 48, 48, 0.1)',
+                        label: 'Failed Authentications',
+                        data: {% if auth_activity.failure %}{{ auth_activity.failure|safe }}{% else %}[32, 28, 35, 24, 38, 21, 18, 23]{% endif %},
+                        borderColor: '#FF9800',
+                        backgroundColor: 'rgba(255, 152, 0, 0.1)',
                         tension: 0.4,
-                        pointBackgroundColor: '#DB3030',
+                        fill: true,
+                        pointBackgroundColor: '#FF9800',
                         pointBorderColor: '#fff',
-                        pointBorderWidth: 2,
-                        pointRadius: 4,
-                        fill: true
+                        pointBorderWidth: 2
                     },
                     {
-                        label: 'MFA Challenges',
-                        data: [623, 578, 702, 687, 943, 821, 758],
+                        label: 'MFA Events',
+                        data: {% if auth_activity.mfa %}{{ auth_activity.mfa|safe }}{% else %}[312, 356, 378, 402, 389, 432, 398, 423]{% endif %},
                         borderColor: '#0D6EFD',
                         backgroundColor: 'rgba(13, 110, 253, 0.1)',
                         tension: 0.4,
+                        fill: true,
                         pointBackgroundColor: '#0D6EFD',
                         pointBorderColor: '#fff',
-                        pointBorderWidth: 2,
-                        pointRadius: 4,
-                        fill: true
+                        pointBorderWidth: 2
                     }
                 ]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'top',
+                    },
+                    tooltip: {
+                        mode: 'index',
+                        intersect: false
+                    }
+                },
                 scales: {
                     y: {
                         beginAtZero: true,
@@ -563,29 +569,36 @@
                             display: false
                         }
                     }
-                },
-                plugins: {
-                    legend: {
-                        position: 'top'
-                    }
                 }
             }
         });
-        
-        // Device Chart
+
+        // Device Usage Chart
         const deviceCtx = document.getElementById('deviceChart').getContext('2d');
+        // Collect the device data from the server
+        const deviceData = {
+            labels: [
+                {% for device, count in usage_by_device.items %}
+                    '{{ device }}',
+                {% empty %}
+                    'Desktop', 'Mobile', 'Tablet', 'API', 'Unknown'
+                {% endfor %}
+            ],
+            data: [
+                {% for device, count in usage_by_device.items %}
+                    {{ count }},
+                {% empty %}
+                    58, 32, 6, 4, 0
+                {% endfor %}
+            ]
+        };
         const deviceChart = new Chart(deviceCtx, {
             type: 'doughnut',
             data: {
-                labels: ['Desktop', 'Mobile', 'Tablet', 'API'],
+                labels: deviceData.labels,
                 datasets: [{
-                    data: [58.4, 32.1, 5.7, 3.8],
-                    backgroundColor: [
-                        '#0D6EFD',
-                        '#01C853',
-                        '#FFCA28',
-                        '#6E31E0'
-                    ],
+                    data: deviceData.data,
+                    backgroundColor: ['#4B77BE', '#1ABC9C', '#F39C12', '#9B59B6', '#95A5A6'],
                     borderColor: 'white',
                     borderWidth: 2
                 }]
@@ -593,7 +606,6 @@
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                cutout: '70%',
                 plugins: {
                     legend: {
                         display: false
@@ -602,26 +614,77 @@
             }
         });
 
-        // Create MFA Gauge charts
+        // App Usage Chart
+        const appUsageCtx = document.getElementById('appUsageChart').getContext('2d');
+        // Collect the app usage data from the server
+        const appLabels = [
+            {% for app, count in usage_by_app.items|slice:":7" %}
+                '{{ app }}',
+            {% empty %}
+                'Salesforce', 'Google Workspace', 'Office 365', 'ServiceNow', 'Slack', 'Jira', 'Others'
+            {% endfor %}
+        ];
+        const appData = [
+            {% for app, count in usage_by_app.items|slice:":7" %}
+                {{ count }},
+            {% empty %}
+                1254, 985, 842, 412, 378, 256, 189
+            {% endfor %}
+        ];
+        const appUsageChart = new Chart(appUsageCtx, {
+            type: 'bar',
+            data: {
+                labels: appLabels,
+                datasets: [{
+                    label: 'Usage Count',
+                    data: appData,
+                    backgroundColor: '#2ECC71',
+                    borderColor: '#27AE60',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                indexAxis: 'y',
+                plugins: {
+                    legend: {
+                        display: false
+                    }
+                },
+                scales: {
+                    x: {
+                        beginAtZero: true,
+                        grid: {
+                            color: 'rgba(0, 0, 0, 0.05)'
+                        }
+                    },
+                    y: {
+                        grid: {
+                            display: false
+                        }
+                    }
+                }
+            }
+        });
+
+        // Helper function to create gauge charts for MFA
         function createGaugeChart(ctx, value, color) {
             return new Chart(ctx, {
                 type: 'doughnut',
                 data: {
                     datasets: [{
                         data: [value, 100 - value],
-                        backgroundColor: [
-                            color,
-                            '#F9FBFA'
-                        ],
-                        borderWidth: 0
+                        backgroundColor: [color, '#E8EDEB'],
+                        borderWidth: 0,
+                        circumference: 180,
+                        rotation: -90
                     }]
                 },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
                     cutout: '75%',
-                    circumference: 180,
-                    rotation: -90,
                     plugins: {
                         legend: {
                             display: false
@@ -634,10 +697,39 @@
             });
         }
 
-        // MFA Gauge charts
-        const mfaGauge1 = createGaugeChart(document.getElementById('mfaGauge1').getContext('2d'), 67, '#01C853');
-        const mfaGauge2 = createGaugeChart(document.getElementById('mfaGauge2').getContext('2d'), 23, '#0D6EFD');
-        const mfaGauge3 = createGaugeChart(document.getElementById('mfaGauge3').getContext('2d'), 10, '#FFCA28');
+        // Initialize MFA gauge charts with actual data or fallback to demo data
+        {% if auth_methods.PASSWORD %}
+        const passwordPercentage = Math.round(({{ auth_methods.PASSWORD }} / (
+            {% for method, count in auth_methods.items %}{{ count }}{% if not forloop.last %} + {% endif %}{% endfor %}
+        )) * 100);
+        {% else %}
+        const passwordPercentage = 65;
+        {% endif %}
+
+        {% if auth_methods.OTP %}
+        const otpPercentage = Math.round(({{ auth_methods.OTP }} / (
+            {% for method, count in auth_methods.items %}{{ count }}{% if not forloop.last %} + {% endif %}{% endfor %}
+        )) * 100);
+        {% else %}
+        const otpPercentage = 23;
+        {% endif %}
+
+        {% if auth_methods.SMS %}
+        const smsPercentage = Math.round(({{ auth_methods.SMS }} / (
+            {% for method, count in auth_methods.items %}{{ count }}{% if not forloop.last %} + {% endif %}{% endfor %}
+        )) * 100);
+        {% else %}
+        const smsPercentage = 10;
+        {% endif %}
+
+        const mfaGauge1 = createGaugeChart(document.getElementById('mfaGauge1').getContext('2d'), passwordPercentage, '#00ED64');
+        const mfaGauge2 = createGaugeChart(document.getElementById('mfaGauge2').getContext('2d'), otpPercentage, '#0D6EFD');
+        const mfaGauge3 = createGaugeChart(document.getElementById('mfaGauge3').getContext('2d'), smsPercentage, '#FFCA28');
+
+        // Update the gauge values in the HTML
+        document.querySelector('#mfaGauge1 + .gauge-value').textContent = passwordPercentage + '%';
+        document.querySelector('#mfaGauge2 + .gauge-value').textContent = otpPercentage + '%';
+        document.querySelector('#mfaGauge3 + .gauge-value').textContent = smsPercentage + '%';
 
         // MFA Adoption Chart
         const mfaAdoptionCtx = document.getElementById('mfaAdoptionChart').getContext('2d');
@@ -647,7 +739,7 @@
                 labels: ['Feb', 'Mar', 'Apr', 'May'],
                 datasets: [{
                     label: 'MFA Adoption Rate',
-                    data: [42, 53, 62, 68],
+                    data: [{{ mfa_usage_rate|add:"-20" }}, {{ mfa_usage_rate|add:"-10" }}, {{ mfa_usage_rate|add:"-5" }}, {{ mfa_usage_rate }}],
                     borderColor: '#01C853',
                     backgroundColor: 'rgba(1, 200, 83, 0.1)',
                     tension: 0.4,
@@ -687,136 +779,96 @@
             }
         });
 
-        // App Usage Chart
-        const appUsageCtx = document.getElementById('appUsageChart').getContext('2d');
-        const appUsageChart = new Chart(appUsageCtx, {
-            type: 'bar',
-            data: {
-                labels: ['Salesforce', 'Google Workspace', 'Office 365', 'ServiceNow', 'Slack', 'Jira', 'Others'],
-                datasets: [{
-                    label: 'Sessions',
-                    data: [1254, 985, 842, 412, 378, 256, 435],
-                    backgroundColor: [
-                        'rgba(13, 110, 253, 0.7)',
-                        'rgba(1, 200, 83, 0.7)',
-                        'rgba(255, 202, 40, 0.7)',
-                        'rgba(239, 108, 0, 0.7)',
-                        'rgba(110, 49, 224, 0.7)',
-                        'rgba(219, 48, 48, 0.7)',
-                        'rgba(136, 147, 146, 0.7)'
-                    ],
-                    borderColor: [
-                        '#0D6EFD',
-                        '#01C853',
-                        '#FFCA28',
-                        '#EF6C00',
-                        '#6E31E0',
-                        '#DB3030',
-                        '#889392'
-                    ],
-                    borderWidth: 1,
-                    borderRadius: 4,
-                    maxBarThickness: 30
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                scales: {
-                    y: {
-                        beginAtZero: true,
-                        grid: {
-                            color: 'rgba(0, 0, 0, 0.05)'
-                        }
-                    },
-                    x: {
-                        grid: {
-                            display: false
-                        }
-                    }
-                },
-                plugins: {
-                    legend: {
-                        display: false
-                    }
-                }
-            }
-        });
-
-        // Generate heatmap
-        const heatmap = document.getElementById('activityHeatmap');
-        const hours = 24;
-        const days = 7;
+        // Set peak usage hour
+        document.getElementById('peak-hour').textContent = '{{ peak_usage_hour }}:00';
         
-        // Sample data - would be replaced with real data
-        const activityData = [
-            [1,1,1,1,1,1,1,2,3,5,4,3,2,3,4,3,2,2,1,1,1,1,1,1], // Sunday
-            [1,1,1,1,1,2,3,4,5,5,4,4,3,4,4,4,3,2,2,1,1,1,1,1], // Monday
-            [1,1,1,1,1,2,3,4,5,5,4,4,3,4,4,5,3,3,2,1,1,1,1,1], // Tuesday
-            [1,1,1,1,1,2,3,4,5,5,4,4,3,4,4,4,4,3,2,1,1,1,1,1], // Wednesday
-            [1,1,1,1,1,2,3,4,5,5,4,4,3,4,4,4,3,3,2,1,1,1,1,1], // Thursday
-            [1,1,1,1,1,2,3,4,4,4,3,3,3,3,3,3,2,2,1,1,1,1,1,1], // Friday
-            [1,1,1,1,1,1,1,1,2,2,2,2,2,2,1,1,1,1,1,1,1,1,1,1]  // Saturday
-        ];
+        // Update success rate and trend indicators with real data
+        const authSuccessRateElement = document.getElementById('auth-success-rate');
+        const authRateTrendElement = document.getElementById('auth-rate-trend');
+        const authRateTrendIconElement = document.getElementById('auth-rate-trend-icon');
         
-        // Create heatmap cells
-        for (let day = 0; day < days; day++) {
-            for (let hour = 0; hour < hours; hour++) {
-                const cell = document.createElement('div');
-                cell.className = `heatmap-cell heatmap-cell-${activityData[day][hour]}`;
-                cell.title = `${['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][day]} at ${hour}:00`;
-                heatmap.appendChild(cell);
-            }
+        authSuccessRateElement.textContent = '{{ auth_success_rate }}%';
+        
+        const authRateChange = {{ auth_rate_change }};
+        if (authRateChange > 0) {
+            authRateTrendElement.textContent = '+' + authRateChange + '%';
+            authRateTrendElement.className = 'trend-up';
+            authRateTrendIconElement.className = 'fas fa-arrow-up me-1';
+        } else if (authRateChange < 0) {
+            authRateTrendElement.textContent = authRateChange + '%';
+            authRateTrendElement.className = 'trend-down';
+            authRateTrendIconElement.className = 'fas fa-arrow-down me-1';
+        } else {
+            authRateTrendElement.textContent = authRateChange + '%';
+            authRateTrendElement.className = 'trend-neutral';
+            authRateTrendIconElement.className = 'fas fa-minus me-1';
+        }
+        
+        // Update MFA usage rate and trend indicators with real data
+        const mfaRateElement = document.getElementById('mfa-usage-rate');
+        const mfaRateTrendElement = document.getElementById('mfa-rate-trend');
+        const mfaRateTrendIconElement = document.getElementById('mfa-rate-trend-icon');
+        
+        mfaRateElement.textContent = '{{ mfa_usage_rate }}%';
+        
+        const mfaRateChange = {{ mfa_rate_change }};
+        if (mfaRateChange > 0) {
+            mfaRateTrendElement.textContent = '+' + mfaRateChange + '%';
+            mfaRateTrendElement.className = 'trend-up';
+            mfaRateTrendIconElement.className = 'fas fa-arrow-up me-1';
+        } else if (mfaRateChange < 0) {
+            mfaRateTrendElement.textContent = mfaRateChange + '%';
+            mfaRateTrendElement.className = 'trend-down';
+            mfaRateTrendIconElement.className = 'fas fa-arrow-down me-1';
+        } else {
+            mfaRateTrendElement.textContent = mfaRateChange + '%';
+            mfaRateTrendElement.className = 'trend-neutral';
+            mfaRateTrendIconElement.className = 'fas fa-minus me-1';
+        }
+        
+        // Update session time and trend indicators with real data
+        const sessionTimeElement = document.getElementById('avg-session-time');
+        const sessionTimeTrendElement = document.getElementById('session-time-trend');
+        const sessionTimeTrendIconElement = document.getElementById('session-time-trend-icon');
+        
+        sessionTimeElement.textContent = '{{ avg_session_time }} min';
+        
+        const sessionTimeChange = {{ session_time_change }};
+        if (sessionTimeChange > 0) {
+            sessionTimeTrendElement.textContent = '+' + sessionTimeChange + '%';
+            sessionTimeTrendElement.className = 'trend-up';
+            sessionTimeTrendIconElement.className = 'fas fa-arrow-up me-1';
+        } else if (sessionTimeChange < 0) {
+            sessionTimeTrendElement.textContent = sessionTimeChange + '%';
+            sessionTimeTrendElement.className = 'trend-down';
+            sessionTimeTrendIconElement.className = 'fas fa-arrow-down me-1';
+        } else {
+            sessionTimeTrendElement.textContent = sessionTimeChange + '%';
+            sessionTimeTrendElement.className = 'trend-neutral';
+            sessionTimeTrendIconElement.className = 'fas fa-minus me-1';
         }
 
-        // World Map (placeholder - would be initialized with a library like jsVectorMap)
-        // This is just a placeholder, in a real implementation you'd initialize the map
-        try {
-            const map = new jsVectorMap({
-                selector: '#worldMap',
-                map: 'world',
-                backgroundColor: 'transparent',
-                regionStyle: {
-                    initial: {
-                        fill: '#e0e0e0',
-                        "fill-opacity": 0.9,
-                        stroke: 'none',
-                        "stroke-width": 0,
-                        "stroke-opacity": 0
-                    },
-                    hover: {
-                        "fill-opacity": 0.8,
-                        cursor: 'pointer'
-                    }
-                },
-                markerStyle: {
-                    initial: {
-                        fill: '#0D6EFD',
-                        stroke: '#FFFFFF',
-                        "fill-opacity": 0.9,
-                        "stroke-width": 1,
-                        "stroke-opacity": 0.8,
-                        r: 5
-                    },
-                    hover: {
-                        fill: '#0953C7',
-                        stroke: '#FFFFFF',
-                        "stroke-width": 2,
-                    }
-                },
-                markers: [
-                    { name: "United States", coords: [37.0902, -95.7129], style: { fill: '#0D6EFD' } },
-                    { name: "United Kingdom", coords: [55.3781, -3.4360], style: { fill: '#0D6EFD' } },
-                    { name: "Germany", coords: [51.1657, 10.4515], style: { fill: '#0D6EFD' } },
-                    { name: "India", coords: [20.5937, 78.9629], style: { fill: '#0D6EFD' } },
-                    { name: "Australia", coords: [-25.2744, 133.7751], style: { fill: '#0D6EFD' } },
-                    { name: "Brazil", coords: [-14.2350, -51.9253], style: { fill: '#FFCA28' } },
-                    { name: "Singapore", coords: [1.3521, 103.8198], style: { fill: '#FFCA28' } },
-                    { name: "South Africa", coords: [-30.5595, 22.9375], style: { fill: '#FFCA28' } }
-                ]
-            });
-        } catch(e) {
-            console.log('Vector map not available - would be initialized in production');
+        // Update failed logins and trend indicators with real data
+        const failedLoginsElement = document.getElementById('failed-logins-count');
+        const failedLoginsTrendElement = document.getElementById('failed-logins-trend');
+        const failedLoginsTrendIconElement = document.getElementById('failed-logins-trend-icon');
+        
+        failedLoginsElement.textContent = '{{ failed_logins_count }}';
+        
+        const failedLoginsChange = {{ failed_logins_change }};
+        // For failed logins, a negative change is actually good (fewer failures)
+        if (failedLoginsChange > 0) {
+            failedLoginsTrendElement.textContent = '+' + failedLoginsChange + '%';
+            failedLoginsTrendElement.className = 'trend-down'; // Red for increase in failures
+            failedLoginsTrendIconElement.className = 'fas fa-arrow-up me-1';
+        } else if (failedLoginsChange < 0) {
+            failedLoginsTrendElement.textContent = failedLoginsChange + '%';
+            failedLoginsTrendElement.className = 'trend-up'; // Green for decrease in failures
+            failedLoginsTrendIconElement.className = 'fas fa-arrow-down me-1';
+        } else {
+            failedLoginsTrendElement.textContent = failedLoginsChange + '%';
+            failedLoginsTrendElement.className = 'trend-neutral';
+            failedLoginsTrendIconElement.className = 'fas fa-minus me-1';
         }
     </script>
 </body>
