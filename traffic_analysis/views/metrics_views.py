@@ -8,6 +8,8 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 from django.utils.decorators import method_decorator
 from django.views.decorators.cache import cache_page
 
+from traffic_analysis.services.login_statistics import get_login_events_count
+
 import logging
 
 logger = logging.getLogger(__name__)
@@ -40,12 +42,15 @@ class MetricsDashboardView(LoginRequiredMixin, TemplateView):
         if hasattr(self.request, 'nonce'):
             context['nonce'] = self.request.nonce
         
-        # Add sample data for initial template rendering
-        # In a real implementation, these would be fetched from services
+        # Get real login events count for the last 30 days
+        successful_logins = get_login_events_count(30)
+        
+        # Add metrics data for template rendering
+        # Using real login events count instead of sample data
         context.update({
             'authentication_metrics': {
-                'total_logins': 15234,
-                'successful_logins': 14562,
+                'total_logins': successful_logins,  # Using real data
+                'successful_logins': successful_logins,  # Using real data
                 'failed_logins': 672,
                 'login_success_rate': 95.6,
                 'mfa_usage_rate': 78.3

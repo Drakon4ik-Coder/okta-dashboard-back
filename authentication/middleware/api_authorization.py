@@ -45,7 +45,11 @@ class APIAuthorizationMiddleware(MiddlewareMixin):
             '/api/health/',
             '/api/public/',
             '/api/token/refresh/',
-            '/api/login-timing/avg/cached/',  # Added this endpoint to exemptions
+            '/api/login-timing/avg/cached/',
+            '/api/statistics/login-events/',
+            '/api/statistics/failed-logins/',
+            '/api/statistics/security-events/',
+            '/api/statistics/total-events/',  # Added total events endpoint to exemptions
         ]
         
     def process_request(self, request):
@@ -172,13 +176,12 @@ class APIAuthorizationMiddleware(MiddlewareMixin):
     def _extract_scopes_from_token(self, token: str) -> Optional[List[str]]:
         """Extract scopes from JWT token"""
         try:
-            # Try to decode without verification first - just to get the claims
-            # In a more secure implementation, you would verify the token first
+            # Properly verify the token using Okta OAuth client
             import jwt
             from jwt.exceptions import DecodeError, ExpiredSignatureError
             
-            # Decode without verification - just to get the payload
-            payload = jwt.decode(token, options={"verify_signature": False})
+            # Use the OAuth client to verify the token
+            payload = self.oauth_client.verify_token(token)
             
             # Get scopes - Okta typically uses 'scp' (array) or 'scope' (space-delimited string)
             if 'scp' in payload and isinstance(payload['scp'], list):
