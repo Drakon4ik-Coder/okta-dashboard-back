@@ -110,7 +110,7 @@ class MetricsDashboardView(LoginRequiredMixin, TemplateView):
                 'mfa_usage_rate': 68.0,
                 'avg_session_time': 35,
                 'peak_usage_hour': 10,
-                'usage_by_app': {"Salesforce": 1254, "Google Workspace": 985, "Office 365": 842},
+                'usage_by_app': {f"App {i}": 0 for i in range(1, 6)},
                 'usage_by_location': {"United States": 42, "United Kingdom": 13, "Germany": 8},
                 'usage_by_device': {"Desktop": 58, "Mobile": 32, "Tablet": 6, "API": 4},
                 'auth_methods': {"PASSWORD": 65, "OTP": 25, "SMS": 10},

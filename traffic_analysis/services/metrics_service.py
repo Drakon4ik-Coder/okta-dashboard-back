@@ -745,7 +745,7 @@ def get_metrics_data(days: int = 30) -> Dict[str, Any]:
             "usage_by_device": {"Desktop": 58, "Mobile": 32, "Tablet": 6, "API": 4},
             "usage_by_browser": {"Chrome": 45, "Safari": 25, "Firefox": 15, "Edge": 10, "Other": 5},
             "usage_by_os": {"Windows": 40, "macOS": 30, "iOS": 15, "Android": 10, "Linux": 5},
-            "usage_by_app": {"Salesforce": 1254, "Google Workspace": 985, "Office 365": 842},
+            "usage_by_app": {f"App {i}": 0 for i in range(1, 6)},
             "usage_by_location": {"United States": 42, "United Kingdom": 13, "Germany": 8},
             "auth_methods": {"PASSWORD": 65, "OTP": 25, "SMS": 10},
             "auth_activity": {

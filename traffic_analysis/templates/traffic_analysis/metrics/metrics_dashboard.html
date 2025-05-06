@@ -437,12 +437,6 @@
                             {% endfor %}
                             {% endwith %}
                         </div>
-                        <div class="mt-4">
-                            <h6>MFA Adoption Trend</h6>
-                            <div class="metric-chart-container">
-                                <canvas id="mfaAdoptionChart"></canvas>
-                            </div>
-                        </div>
                     </div>
                 </div>
             </div>
@@ -462,42 +456,20 @@
                                     <thead>
                                         <tr>
                                             <th>Application</th>
-                                            <th>Users</th>
                                             <th>Sessions</th>
-                                            <th>Avg. Time</th>
                                         </tr>
                                     </thead>
                                     <tbody>
+                                        {% for app, count in usage_by_app.items|dictsort:"-1"|slice:":5" %}
                                         <tr>
-                                            <td>Salesforce</td>
-                                            <td>78</td>
-                                            <td>1,254</td>
-                                            <td>42m</td>
+                                            <td>{{ app }}</td>
+                                            <td>{{ count }}</td>
                                         </tr>
+                                        {% empty %}
                                         <tr>
-                                            <td>Google Workspace</td>
-                                            <td>112</td>
-                                            <td>985</td>
-                                            <td>35m</td>
+                                            <td colspan="2" class="text-center">No application usage data available</td>
                                         </tr>
-                                        <tr>
-                                            <td>Office 365</td>
-                                            <td>95</td>
-                                            <td>842</td>
-                                            <td>28m</td>
-                                        </tr>
-                                        <tr>
-                                            <td>ServiceNow</td>
-                                            <td>43</td>
-                                            <td>412</td>
-                                            <td>22m</td>
-                                        </tr>
-                                        <tr>
-                                            <td>Slack</td>
-                                            <td>87</td>
-                                            <td>378</td>
-                                            <td>18m</td>
-                                        </tr>
+                                        {% endfor %}
                                     </tbody>
                                 </table>
                             </div>
@@ -731,14 +703,14 @@
             {% for app, count in usage_by_app.items|slice:":7" %}
                 '{{ app }}',
             {% empty %}
-                'Salesforce', 'Google Workspace', 'Office 365', 'ServiceNow', 'Slack', 'Jira', 'Others'
+                'App 1', 'App 2', 'App 3', 'App 4', 'App 5', 'App 6', 'Other'
             {% endfor %}
         ];
         const appData = [
             {% for app, count in usage_by_app.items|slice:":7" %}
                 {{ count }},
             {% empty %}
-                1254, 985, 842, 412, 378, 256, 189
+                0, 0, 0, 0, 0, 0, 0
             {% endfor %}
         ];
         const appUsageChart = new Chart(appUsageCtx, {
@@ -773,147 +745,6 @@
                         grid: {
                             display: false
                         }
-                    }
-                }
-            }
-        });
-
-        // Helper function to create gauge charts for MFA
-        function createGaugeChart(ctx, value, color) {
-            return new Chart(ctx, {
-                type: 'doughnut',
-                data: {
-                    datasets: [{
-                        data: [value, 100 - value],
-                        backgroundColor: [color, '#E8EDEB'],
-                        borderWidth: 0,
-                        circumference: 180,
-                        rotation: -90
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    cutout: '75%',
-                    plugins: {
-                        legend: {
-                            display: false
-                        },
-                        tooltip: {
-                            enabled: false
-                        }
-                    }
-                }
-            });
-        }
-
-        // Calculate total MFA usage
-        const mfaMethods = {
-            {% for method, count in auth_methods.items %}
-                "{{ method }}": {{ count }},
-            {% endfor %}
-        };
-        
-        const totalMfaUsage = Object.values(mfaMethods).reduce((sum, count) => sum + count, 0);
-        
-        // Process the top 3 MFA methods
-        const mfaColors = ['#00ED64', '#0D6EFD', '#FFCA28'];
-        let mfaGauges = [];
-        
-        // Sort the MFA methods by count and take the top 3
-        const sortedMethods = Object.entries(mfaMethods)
-            .sort((a, b) => b[1] - a[1])
-            .slice(0, 3);
-            
-        // Create gauge charts for each of the top 3 methods
-        sortedMethods.forEach((methodData, index) => {
-            const method = methodData[0];
-            const count = methodData[1];
-            const percentage = totalMfaUsage > 0 ? Math.round((count / totalMfaUsage) * 100) : 0;
-            
-            // Get the gauge element and value element
-            const gaugeCanvas = document.getElementById(`mfaGauge${index + 1}`);
-            const gaugeValue = document.getElementById(`mfa-gauge-value-${index + 1}`);
-            const gaugeLabel = document.getElementById(`mfa-gauge-label-${index + 1}`);
-            
-            // If we have the gauge elements, update them
-            if (gaugeCanvas && gaugeValue) {
-                // Create the gauge chart
-                mfaGauges.push(createGaugeChart(gaugeCanvas.getContext('2d'), percentage, mfaColors[index]));
-                
-                // Update the value display
-                gaugeValue.textContent = `${percentage}%`;
-                
-                // Format the method name for display if needed
-                if (gaugeLabel) {
-                    let displayName = method;
-                    if (method === "OTP") displayName = "Authenticator App";
-                    else if (method === "PASSWORD") displayName = "Password";
-                    else if (method === "SMS") displayName = "SMS";
-                    else if (method === "EMAIL") displayName = "Email";
-                    else if (method === "WEBAUTHN") displayName = "Security Key";
-                    
-                    gaugeLabel.textContent = displayName;
-                }
-            }
-        });
-        
-        // If we don't have any MFA data or less than 3 methods, fill in with defaults
-        if (sortedMethods.length === 0) {
-            // Create default gauge charts if no data
-            mfaGauges.push(createGaugeChart(document.getElementById('mfaGauge1').getContext('2d'), 0, mfaColors[0]));
-            mfaGauges.push(createGaugeChart(document.getElementById('mfaGauge2').getContext('2d'), 0, mfaColors[1]));
-            mfaGauges.push(createGaugeChart(document.getElementById('mfaGauge3').getContext('2d'), 0, mfaColors[2]));
-            
-            // Update labels
-            document.querySelector('#mfaGauge1 + .gauge-value').textContent = '0%';
-            document.querySelector('#mfaGauge2 + .gauge-value').textContent = '0%';
-            document.querySelector('#mfaGauge3 + .gauge-value').textContent = '0%';
-        }
-
-        // MFA Adoption Chart
-        const mfaAdoptionCtx = document.getElementById('mfaAdoptionChart').getContext('2d');
-        const mfaAdoptionChart = new Chart(mfaAdoptionCtx, {
-            type: 'line',
-            data: {
-                labels: ['Feb', 'Mar', 'Apr', 'May'],
-                datasets: [{
-                    label: 'MFA Adoption Rate',
-                    data: [{{ mfa_usage_rate|add:"-20" }}, {{ mfa_usage_rate|add:"-10" }}, {{ mfa_usage_rate|add:"-5" }}, {{ mfa_usage_rate }}],
-                    borderColor: '#01C853',
-                    backgroundColor: 'rgba(1, 200, 83, 0.1)',
-                    tension: 0.4,
-                    pointBackgroundColor: '#01C853',
-                    pointBorderColor: '#fff',
-                    pointBorderWidth: 2,
-                    fill: true
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                scales: {
-                    y: {
-                        beginAtZero: true,
-                        max: 100,
-                        ticks: {
-                            callback: function(value) {
-                                return value + '%';
-                            }
-                        },
-                        grid: {
-                            color: 'rgba(0, 0, 0, 0.05)'
-                        }
-                    },
-                    x: {
-                        grid: {
-                            display: false
-                        }
-                    }
-                },
-                plugins: {
-                    legend: {
-                        display: false
                     }
                 }
             }
