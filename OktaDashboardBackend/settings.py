@@ -218,7 +218,7 @@ MONGODB_SETTINGS = {
 	"db": env("MONGO_DB_NAME", default="OktaDashboardDB"),
 	"host": env("MONGO_HOST", default="localhost"),
 	"port": env.int("MONGO_PORT", default=27017),
-	"username": env("MONGO_USER", default=None),
+	"username": env("MONGO_USER", default="admin"),
 	"password": env("MONGO_PASSWORD", default=None),
 	"authentication_source": env("MONGO_AUTH_SOURCE", default="admin"),
 	# Connection optimization settings

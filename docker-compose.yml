@@ -17,14 +17,21 @@ services:
     ports:
       - "8000:8000"
     depends_on:
-      - mongodb
-      - redis
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     env_file:
       - .env
     environment:
       - DEBUG=0
       - DJANGO_SETTINGS_MODULE=OktaDashboardBackend.settings
       - MONGO_HOST=mongodb
+      - MONGO_PORT=27017
+      - MONGO_USER=${MONGO_USER}
+      - MONGO_PASSWORD=${MONGO_PASSWORD}
+      - MONGO_DB_NAME=${MONGO_DB_NAME:-OktaDashboardDB}
+      - MONGO_AUTH_SOURCE=${MONGO_AUTH_SOURCE:-admin}
       - REDIS_HOST=redis
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health/"]
@@ -61,12 +68,14 @@ services:
 
   # MongoDB database
   mongodb:
-    image: mongo:6.0
+    image: mongo:latest
     container_name: okta_dashboard_mongodb
     ports:
       - "27017:27017"
     volumes:
       - mongodb_data:/data/db
+      - ./init-mongo.js:/docker-entrypoint-initdb.d/init-mongo.js
+
     environment:
       - MONGO_INITDB_ROOT_USERNAME=${MONGO_USER}
       - MONGO_INITDB_ROOT_PASSWORD=${MONGO_PASSWORD}
@@ -83,7 +92,7 @@ services:
 
   # Redis for caching and task queue
   redis:
-    image: redis:7.0-alpine
+    image: redis:latest
     container_name: okta_dashboard_redis
     ports:
       - "6379:6379"
@@ -101,7 +110,7 @@ services:
 
   # Prometheus for metrics
   prometheus:
-    image: prom/prometheus:v2.43.0
+    image: prom/prometheus:latest
     container_name: okta_dashboard_prometheus
     volumes:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml
@@ -119,7 +128,7 @@ services:
 
   # Grafana for metric visualization
   grafana:
-    image: grafana/grafana:9.5.1
+    image: grafana/grafana:latest
     container_name: okta_dashboard_grafana
     volumes:
       - grafana_data:/var/lib/grafana
