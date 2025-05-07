@@ -1,0 +1,472 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Okta Logs Dashboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="{% static 'traffic_analysis/css/euclid-circular-a.css' %}">
+    <link rel="stylesheet" href="{% static 'rest_framework/css/bootstrap.min.css' %}">
+    <link rel="stylesheet" href="{% static 'traffic_analysis/css/font-awesome.min.css' %}">
+    <link rel="stylesheet" href="{% static 'traffic_analysis/css/chart.min.css' %}">
+    <link rel="stylesheet" href="{% static 'traffic_analysis/css/dashboard.css' %}" nonce="{{ nonce }}">
+</head>
+
+<body>
+    <!-- Modern navigation -->
+    <nav class="navbar navbar-expand-lg fixed-top bg-white">
+        <div class="container">
+            <a class="navbar-brand" href="/">Okta<span>Analytics</span></a>
+            <button class="navbar-toggler border-0" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <i class="fas fa-bars"></i>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="/dashboard/">Dashboard</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/events/">Events</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="/logs/">Logs</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/users/">Users</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/reports/">Reports</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="btn btn-mongodb-outline ms-2" href="/logout/">Logout</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Page header -->
+    <section class="page-header">
+        <div class="container">
+            <h1 class="page-title">Log Statistics Dashboard</h1>
+            <p class="page-description">
+                Monitor and analyze log statistics from your Okta environment. View trends, patterns, and anomalies to maintain optimal system health and security.
+            </p>
+        </div>
+    </section>
+
+    <!-- Main content -->
+    <section class="container">
+        <!-- Time range filter -->
+        <div class="filter-section">
+            <h5 class="filter-section-title">Select Time Range</h5>
+            <form method="get" class="row g-3 align-items-end">
+                <div class="col-md-3">
+                    <label for="days" class="form-label">Time Period</label>
+                    <select name="days" id="days" class="form-select">
+                        {% for day_option in available_time_ranges %}
+                        <option value="{{ day_option }}" {% if days == day_option %}selected{% endif %}>
+                            {% if day_option == 1 %}Last 24 Hours
+                            {% elif day_option == 7 %}Last 7 Days
+                            {% elif day_option == 30 %}Last 30 Days
+                            {% elif day_option == 90 %}Last 90 Days
+                            {% endif %}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <button type="submit" class="btn btn-mongodb w-100">Apply</button>
+                </div>
+                <div class="col-md-7 text-end">
+                    <p class="mb-0"><strong>Current Period:</strong> {{ time_period.start|date:"M d, Y" }} - {{ time_period.end|date:"M d, Y" }}</p>
+                </div>
+            </form>
+        </div>
+        
+        <!-- Summary Cards -->
+        <div class="row mb-4">
+            <div class="col-md-3">
+                <div class="stats-card text-center">
+                    <div class="stats-value">{{ total_logs }}</div>
+                    <p class="stats-label">Total Logs</p>
+                    {% if comparison.changes.is_increasing %}
+                    <div class="comparison-indicator comparison-up">
+                        <i class="fas fa-arrow-up"></i> {{ comparison.changes.percent_change }}%
+                    </div>
+                    {% else %}
+                    <div class="comparison-indicator comparison-down">
+                        <i class="fas fa-arrow-down"></i> {{ comparison.changes.percent_change|floatformat:2 }}%
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            
+            {% for severity, count in severity_distribution|dictsort:0 %}
+            <div class="col-md-3">
+                <div class="stats-card text-center">
+                    {% if severity == "HIGH" or severity == "high" %}
+                    <div class="stats-value" style="color: var(--mongodb-red);" nonce="{{ nonce }}">{{ count }}</div>
+                    <p class="stats-label">High Severity</p>
+                    {% elif severity == "MEDIUM" or severity == "medium" %}
+                    <div class="stats-value" style="color: var(--mongodb-orange);" nonce="{{ nonce }}">{{ count }}</div>
+                    <p class="stats-label">Medium Severity</p>
+                    {% elif severity == "LOW" or severity == "low" %}
+                    <div class="stats-value" style="color: var(--mongodb-yellow);" nonce="{{ nonce }}">{{ count }}</div>
+                    <p class="stats-label">Low Severity</p>
+                    {% else %}
+                    <div class="stats-value" style="color: var(--mongodb-blue);" nonce="{{ nonce }}">{{ count }}</div>
+                    <p class="stats-label">{{ severity|capfirst }} Logs</p>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        
+        <!-- Two-column layout for charts -->
+        <div class="row">
+            <!-- Left column -->
+            <div class="col-md-6">
+                <!-- Daily Trend Chart -->
+                <div class="dashboard-card">
+                    <div class="dashboard-card-header">
+                        <h5 class="dashboard-card-title">Daily Log Volume Trend</h5>
+                        <div class="dropdown">
+                            <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" id="trendOptions" data-bs-toggle="dropdown" aria-expanded="false">
+                                <i class="fas fa-ellipsis-v"></i>
+                            </button>
+                            <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="trendOptions">
+                                <li><a class="dropdown-item" href="#" id="downloadDailyTrendCSV">Export as CSV</a></li>
+                                <li><a class="dropdown-item" href="#" id="refreshDailyTrend">Refresh</a></li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="dailyTrendChart"></canvas>
+                    </div>
+                </div>
+                
+                <!-- Severity Distribution Chart -->
+                <div class="dashboard-card">
+                    <div class="dashboard-card-header">
+                        <h5 class="dashboard-card-title">Severity Distribution</h5>
+                        <div class="dropdown">
+                            <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" id="severityOptions" data-bs-toggle="dropdown" aria-expanded="false">
+                                <i class="fas fa-ellipsis-v"></i>
+                            </button>
+                            <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="severityOptions">
+                                <li><a class="dropdown-item" href="#" id="downloadSeverityCSV">Export as CSV</a></li>
+                                <li><a class="dropdown-item" href="#" id="refreshSeverity">Refresh</a></li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="severityChart"></canvas>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Right column -->
+            <div class="col-md-6">
+                <!-- Hourly Distribution Chart -->
+                <div class="dashboard-card">
+                    <div class="dashboard-card-header">
+                        <h5 class="dashboard-card-title">Hourly Distribution</h5>
+                        <div class="dropdown">
+                            <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" id="hourlyOptions" data-bs-toggle="dropdown" aria-expanded="false">
+                                <i class="fas fa-ellipsis-v"></i>
+                            </button>
+                            <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="hourlyOptions">
+                                <li><a class="dropdown-item" href="#" id="downloadHourlyCSV">Export as CSV</a></li>
+                                <li><a class="dropdown-item" href="#" id="refreshHourly">Refresh</a></li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="hourlyChart"></canvas>
+                    </div>
+                </div>
+                
+                <!-- Period Comparison -->
+                <div class="dashboard-card">
+                    <div class="dashboard-card-header">
+                        <h5 class="dashboard-card-title">Period Comparison</h5>
+                        <span class="badge bg-light text-dark">vs Previous {{ days }} Days</span>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-6">
+                            <div class="border rounded p-3 text-center">
+                                <h6 class="text-muted mb-2">Current Period</h6>
+                                <h3 class="mb-1">{{ comparison.current_period.count }}</h3>
+                                <p class="mb-0 text-muted small">{{ comparison.current_period.start|date:"M d" }} - {{ comparison.current_period.end|date:"M d" }}</p>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="border rounded p-3 text-center">
+                                <h6 class="text-muted mb-2">Previous Period</h6>
+                                <h3 class="mb-1">{{ comparison.previous_period.count }}</h3>
+                                <p class="mb-0 text-muted small">{{ comparison.previous_period.start|date:"M d" }} - {{ comparison.previous_period.end|date:"M d" }}</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="d-flex align-items-center justify-content-center mb-3">
+                        <h5 class="mb-0">Change: 
+                            {% if comparison.changes.is_increasing %}
+                            <span class="text-success">+{{ comparison.changes.count_change }} ({{ comparison.changes.percent_change|floatformat:2 }}%)</span>
+                            {% else %}
+                            <span class="text-danger">{{ comparison.changes.count_change }} ({{ comparison.changes.percent_change|floatformat:2 }}%)</span>
+                            {% endif %}
+                        </h5>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Top Sources and Log Types -->
+        <div class="row">
+            <div class="col-md-6">
+                <!-- Top Sources -->
+                <div class="dashboard-card">
+                    <div class="dashboard-card-header">
+                        <h5 class="dashboard-card-title">Top Sources</h5>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table dashboard-table">
+                            <thead>
+                                <tr>
+                                    <th>IP Address</th>
+                                    <th>Count</th>
+                                    <th>Percentage</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for source in top_sources %}
+                                <tr>
+                                    <td>{{ source.source }}</td>
+                                    <td>{{ source.count }}</td>
+                                    <td>
+                                        {% with percentage=source.count|floatformat:0|add:0|multiply:100|divisibleby:total_logs %}
+                                        <div class="progress" style="height: 8px;" nonce="{{ nonce }}">
+                                            <div class="progress-bar bg-success" role="progressbar" style="width: {{ source.percentage|default:percentage|floatformat:1 }}%;" nonce="{{ nonce }}"></div>
+                                        </div>
+                                        <span class="small">{{ source.percentage|default:percentage|floatformat:1 }}%</span>
+                                        {% endwith %}
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="3" class="text-center">No source data available</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-6">
+                <!-- Top Log Types -->
+                <div class="dashboard-card">
+                    <div class="dashboard-card-header">
+                        <h5 class="dashboard-card-title">Top Log Types</h5>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table dashboard-table">
+                            <thead>
+                                <tr>
+                                    <th>Type</th>
+                                    <th>Count</th>
+                                    <th>Percentage</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for type_item in top_log_types %}
+                                <tr>
+                                    <td>{{ type_item.type }}</td>
+                                    <td>{{ type_item.count }}</td>
+                                    <td>
+                                        {% with percentage=type_item.count|multiply:100|floatformat:0|divisibleby:total_logs %}
+                                        <div class="progress" style="height: 8px;" nonce="{{ nonce }}">
+                                            <div class="progress-bar bg-info" role="progressbar" style="width: {{ type_item.percentage|default:percentage|floatformat:1 }}%;" nonce="{{ nonce }}"></div>
+                                        </div>
+                                        <span class="small">{{ type_item.percentage|default:percentage|floatformat:1 }}%</span>
+                                        {% endwith %}
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="3" class="text-center">No log type data available</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer>
+        <div class="container">
+            <div class="text-center">
+                <p>&copy; 2025 OktaAnalytics. All rights reserved.</p>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Modern JS libraries -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://unpkg.com/aos@2.3.1/dist/aos.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        // Initialize AOS animation library
+        document.addEventListener('DOMContentLoaded', function() {
+            AOS.init({
+                duration: 800,
+                easing: 'ease-in-out',
+                once: true
+            });
+            
+            // Setup chart data
+            setupCharts();
+        });
+        
+        // Setup all charts
+        function setupCharts() {
+            // Daily trend chart
+            const dailyTrendCtx = document.getElementById('dailyTrendChart').getContext('2d');
+            const dailyTrendData = {
+                labels: [{% for item in daily_trend %}'{{ item.date }}'{% if not forloop.last %}, {% endif %}{% endfor %}],
+                datasets: [{
+                    label: 'Log Count',
+                    data: [{% for item in daily_trend %}{{ item.count }}{% if not forloop.last %}, {% endif %}{% endfor %}],
+                    backgroundColor: 'rgba(0, 104, 74, 0.2)',
+                    borderColor: 'rgba(0, 104, 74, 1)',
+                    borderWidth: 2,
+                    tension: 0.3,
+                    pointBackgroundColor: 'rgba(0, 104, 74, 1)',
+                    fill: true
+                }]
+            };
+            
+            new Chart(dailyTrendCtx, {
+                type: 'line',
+                data: dailyTrendData,
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                precision: 0
+                            }
+                        },
+                        x: {
+                            ticks: {
+                                maxRotation: 45,
+                                minRotation: 45
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        tooltip: {
+                            mode: 'index',
+                            intersect: false
+                        }
+                    }
+                }
+            });
+            
+            // Severity distribution chart
+            const severityCtx = document.getElementById('severityChart').getContext('2d');
+            const severityData = {
+                labels: [{% for severity, count in severity_distribution.items %}'{{ severity|capfirst }}'{% if not forloop.last %}, {% endif %}{% endfor %}],
+                datasets: [{
+                    label: 'Count',
+                    data: [{% for severity, count in severity_distribution.items %}{{ count }}{% if not forloop.last %}, {% endif %}{% endfor %}],
+                    backgroundColor: [
+                        'rgba(255, 0, 0, 0.6)',   // Red for HIGH
+                        'rgba(237, 126, 33, 0.6)', // Orange for MEDIUM
+                        'rgba(255, 221, 0, 0.6)',  // Yellow for LOW
+                        'rgba(13, 110, 253, 0.6)'  // Blue for INFO
+                    ],
+                    borderWidth: 0
+                }]
+            };
+            
+            new Chart(severityCtx, {
+                type: 'doughnut',
+                data: severityData,
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'right'
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const label = context.label || '';
+                                    const value = context.raw || 0;
+                                    const total = context.dataset.data.reduce((acc, val) => acc + val, 0);
+                                    const percentage = Math.round((value / total) * 100);
+                                    return `${label}: ${value} (${percentage}%)`;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+            
+            // Hourly distribution chart
+            const hourlyCtx = document.getElementById('hourlyChart').getContext('2d');
+            const hourlyData = {
+                labels: [{% for item in hourly_distribution %}'{{ item.hour }}'{% if not forloop.last %}, {% endif %}{% endfor %}],
+                datasets: [{
+                    label: 'Log Count',
+                    data: [{% for item in hourly_distribution %}{{ item.count }}{% if not forloop.last %}, {% endif %}{% endfor %}],
+                    backgroundColor: 'rgba(13, 110, 253, 0.6)',
+                    borderColor: 'rgba(13, 110, 253, 1)',
+                    borderWidth: 1
+                }]
+            };
+            
+            new Chart(hourlyCtx, {
+                type: 'bar',
+                data: hourlyData,
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                precision: 0
+                            }
+                        },
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Hour of Day (24h)'
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    }
+                }
+            });
+        }
+    </script>
+</body>
+</html>

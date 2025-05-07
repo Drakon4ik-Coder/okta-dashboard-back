@@ -1,0 +1,846 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Okta Metrics Dashboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="{% static 'traffic_analysis/css/euclid-circular-a.css' %}">
+    <link rel="stylesheet" href="{% static 'rest_framework/css/bootstrap.min.css' %}">
+    <link rel="stylesheet" href="{% static 'traffic_analysis/css/font-awesome.min.css' %}">
+    <link rel="stylesheet" href="{% static 'traffic_analysis/css/chart.min.css' %}">
+    <link rel="stylesheet" href="{% static 'traffic_analysis/css/dashboard.css' %}" nonce="{{ nonce }}">
+</head>
+<body>
+    <!-- Sidebar Toggle Button -->
+    <div class="sidebar-toggle">
+        <i class="fas fa-bars"></i>
+    </div>
+    
+    <!-- Sidebar -->
+    <div class="sidebar">
+        <div class="sidebar-header">
+            <a href="/dashboard/" class="sidebar-brand">
+                Okta<span>Analytics</span>
+            </a>
+        </div>
+        
+        <div class="pt-3">
+            <ul class="nav flex-column">
+                <li class="nav-item">
+                    <a class="nav-link" href="/dashboard/">
+                        <i class="fas fa-chart-pie"></i>
+                        <span>Dashboard</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="/events/">
+                        <i class="fas fa-list-alt"></i>
+                        <span>Events</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="/users/">
+                        <i class="fas fa-users"></i>
+                        <span>Users</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="/alerts/">
+                        <i class="fas fa-bell"></i>
+                        <span>Alerts</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link active" href="/metrics/">
+                        <i class="fas fa-chart-line"></i>
+                        <span>Metrics</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="/reports/">
+                        <i class="fas fa-file-alt"></i>
+                        <span>Reports</span>
+                    </a>
+                </li>
+                <li class="nav-item mt-5">
+                    <a class="nav-link" href="/settings/">
+                        <i class="fas fa-cog"></i>
+                        <span>Settings</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="/logout/">
+                        <i class="fas fa-sign-out-alt"></i>
+                        <span>Logout</span>
+                    </a>
+                </li>
+            </ul>
+        </div>
+    </div>
+    
+    <!-- Main Content -->
+    <div class="main-content">
+        <!-- Topbar -->
+        <div class="topbar">
+            <div>
+                <h1 class="page-title">Authentication Metrics</h1>
+                <p class="page-description">Analyze authentication patterns and usage statistics across your organization.</p>
+            </div>
+            <div class="user-dropdown">
+                <div class="user-info">
+                    <div class="user-name">Admin User</div>
+                    <div class="user-role">Administrator</div>
+                </div>
+                <div class="user-avatar">A</div>
+            </div>
+        </div>
+        
+        <!-- Time filter -->
+        <div class="filters mb-4">
+            <button class="filter-btn active" data-period="7d">Last 7 Days</button>
+            <button class="filter-btn" data-period="14d">Last 14 Days</button>
+            <button class="filter-btn" data-period="30d">Last 30 Days</button>
+            <button class="filter-btn" data-period="90d">Custom Range</button>
+        </div>
+
+        <!-- Stats Overview -->
+        <div class="row">
+            <div class="col-md-3">
+                <div class="stat-card">
+                    <div class="stat-header">
+                        <div class="stat-icon icon-primary">
+                            <i class="fas fa-check-circle"></i>
+                        </div>
+                        <div>
+                            <div class="stat-title">AUTH SUCCESS RATE</div>
+                            <div class="stat-value" id="auth-success-rate">{{ auth_success_rate }}%</div>
+                        </div>
+                    </div>
+                    <div class="stat-footer">
+                        <div class="stat-trend" id="auth-rate-trend">
+                            <i class="fas fa-arrow-up mr-1" id="auth-rate-trend-icon"></i> 1.2%
+                        </div>
+                        <div class="stat-period">vs. previous period</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="stat-card">
+                    <div class="stat-header">
+                        <div class="stat-icon icon-success">
+                            <i class="fas fa-shield-alt"></i>
+                        </div>
+                        <div>
+                            <div class="stat-title">MFA USAGE RATE</div>
+                            <div class="stat-value" id="mfa-usage-rate">{{ mfa_usage_rate }}%</div>
+                        </div>
+                    </div>
+                    <div class="stat-footer">
+                        <div class="stat-trend" id="mfa-rate-trend">
+                            <i class="fas fa-arrow-up mr-1" id="mfa-rate-trend-icon"></i> 3.8%
+                        </div>
+                        <div class="stat-period">vs. previous period</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="stat-card">
+                    <div class="stat-header">
+                        <div class="stat-icon icon-warning">
+                            <i class="fas fa-clock"></i>
+                        </div>
+                        <div>
+                            <div class="stat-title">AVG SESSION TIME</div>
+                            <div class="stat-value" id="avg-session-time">{{ avg_session_time }}m</div>
+                        </div>
+                    </div>
+                    <div class="stat-footer">
+                        <div class="stat-trend" id="session-time-trend">
+                            <i class="fas fa-arrow-down mr-1" id="session-time-trend-icon"></i> 2.1%
+                        </div>
+                        <div class="stat-period">vs. previous period</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="stat-card">
+                    <div class="stat-header">
+                        <div class="stat-icon icon-danger">
+                            <i class="fas fa-exclamation-triangle"></i>
+                        </div>
+                        <div>
+                            <div class="stat-title">FAILED LOGINS</div>
+                            <div class="stat-value" id="failed-logins-count">{{ failed_logins_count }}</div>
+                        </div>
+                    </div>
+                    <div class="stat-footer">
+                        <div class="stat-trend" id="failed-logins-trend">
+                            <i class="fas fa-arrow-down mr-1" id="failed-logins-trend-icon"></i> {{ failed_logins_change }}%
+                        </div>
+                        <div class="stat-period">vs. previous period</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Authentication Activity -->
+        <div class="content-card">
+            <div class="card-header">
+                <h2 class="card-title">Authentication Activity</h2>
+                <div>
+                    <button class="btn btn-sm btn-outline-secondary">
+                        <i class="fas fa-download"></i> Export Data
+                    </button>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="chart-container">
+                    <canvas id="authActivityChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Usage by Device and Location -->
+        <div class="row">
+            <div class="col-lg-6">
+                <div class="content-card">
+                    <div class="card-header">
+                        <h2 class="card-title">Usage by Device Type</h2>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="metric-chart-container">
+                                    <canvas id="deviceChart"></canvas>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="chart-legend">
+                                    <div class="device-item">
+                                        <div class="device-icon device-icon-desktop">
+                                            <i class="fas fa-desktop fa-lg"></i>
+                                        </div>
+                                        <div class="device-details">
+                                            <div class="device-name">Desktop</div>
+                                            <div class="device-stats">
+                                                <div class="device-percentage" id="desktop-percentage">
+                                                    {% if usage_by_device.Desktop %}
+                                                        {{ usage_by_device.Desktop }}%
+                                                    {% else %}
+                                                        0%
+                                                    {% endif %}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="device-item">
+                                        <div class="device-icon device-icon-mobile">
+                                            <i class="fas fa-mobile-alt fa-lg"></i>
+                                        </div>
+                                        <div class="device-details">
+                                            <div class="device-name">Mobile</div>
+                                            <div class="device-stats">
+                                                <div class="device-percentage" id="mobile-percentage">
+                                                    {% if usage_by_device.Mobile %}
+                                                        {{ usage_by_device.Mobile }}%
+                                                    {% else %}
+                                                        0%
+                                                    {% endif %}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="device-item">
+                                        <div class="device-icon device-icon-tablet">
+                                            <i class="fas fa-tablet-alt fa-lg"></i>
+                                        </div>
+                                        <div class="device-details">
+                                            <div class="device-name">Tablet</div>
+                                            <div class="device-stats">
+                                                <div class="device-percentage" id="tablet-percentage">
+                                                    {% if usage_by_device.Tablet %}
+                                                        {{ usage_by_device.Tablet }}%
+                                                    {% else %}
+                                                        0%
+                                                    {% endif %}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="device-item">
+                                        <div class="device-icon device-icon-api">
+                                            <i class="fas fa-code fa-lg"></i>
+                                        </div>
+                                        <div class="device-details">
+                                            <div class="device-name">API</div>
+                                            <div class="device-stats">
+                                                <div class="device-percentage" id="api-percentage">
+                                                    {% if usage_by_device.API %}
+                                                        {{ usage_by_device.API }}%
+                                                    {% else %}
+                                                        0%
+                                                    {% endif %}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="device-item">
+                                        <div class="device-icon device-icon-unknown">
+                                            <i class="fas fa-question-circle fa-lg"></i>
+                                        </div>
+                                        <div class="device-details">
+                                            <div class="device-name">Unknown</div>
+                                            <div class="device-stats">
+                                                <div class="device-percentage" id="unknown-percentage">
+                                                    {% if usage_by_device.Unknown %}
+                                                        {{ usage_by_device.Unknown }}%
+                                                    {% else %}
+                                                        0%
+                                                    {% endif %}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-6">
+                <div class="content-card">
+                    <div class="okta-card-header">
+                        <h2 class="okta-card-title">Geographic Distribution</h2>
+                    </div>
+                    <div class="okta-card-body p-3">
+                        <div class="okta-map-container" id="worldMap">
+                            <!-- Map will be rendered here -->
+                        </div>
+                        <div class="mt-3">
+                            <div class="row">
+                                <div class="col-lg-6 col-md-6">
+                                    <h6 class="mb-3 fw-semibold">Top Locations</h6>
+                                    <div class="mb-2 d-flex justify-content-between">
+                                        <span>United States</span>
+                                        <span class="fw-bold">42.5%</span>
+                                    </div>
+                                    <div class="mb-2 d-flex justify-content-between">
+                                        <span>United Kingdom</span>
+                                        <span class="fw-bold">12.8%</span>
+                                    </div>
+                                    <div class="mb-2 d-flex justify-content-between">
+                                        <span>Germany</span>
+                                        <span class="fw-bold">8.3%</span>
+                                    </div>
+                                    <div class="mb-2 d-flex justify-content-between">
+                                        <span>India</span>
+                                        <span class="fw-bold">7.6%</span>
+                                    </div>
+                                    <div class="mb-2 d-flex justify-content-between">
+                                        <span>Australia</span>
+                                        <span class="fw-bold">5.2%</span>
+                                    </div>
+                                </div>
+                                <div class="col-lg-6 col-md-6">
+                                    <h6 class="mb-3 fw-semibold">New Locations (7d)</h6>
+                                    <div class="mb-2 d-flex justify-content-between align-items-center">
+                                        <span>Brazil</span>
+                                        <span class="okta-badge okta-badge-warning">3 users</span>
+                                    </div>
+                                    <div class="mb-2 d-flex justify-content-between align-items-center">
+                                        <span>Singapore</span>
+                                        <span class="okta-badge okta-badge-warning">2 users</span>
+                                    </div>
+                                    <div class="mb-2 d-flex justify-content-between align-items-center">
+                                        <span>South Africa</span>
+                                        <span class="okta-badge okta-badge-warning">1 user</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- MFA & Authentication Methods -->
+        <div class="row">
+            <div class="col-lg-6">
+                <div class="content-card">
+                    <div class="card-header">
+                        <h2 class="card-title">MFA Methods Distribution</h2>
+                    </div>
+                    <div class="card-body">
+                        <div class="row text-center">
+                            {% with auth_methods_list=auth_methods.items|dictsort:"-1"|slice:":3" %}
+                            {% for method, count in auth_methods_list %}
+                            <div class="col-4">
+                                <div class="metric-gauge">
+                                    <div class="gauge-chart">
+                                        <canvas id="mfaGauge{{ forloop.counter }}"></canvas>
+                                        <div class="gauge-value" id="mfa-gauge-value-{{ forloop.counter }}">
+                                            {% if method %}
+                                                0%
+                                            {% else %}
+                                                0%
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                    <div class="gauge-label" id="mfa-gauge-label-{{ forloop.counter }}">
+                                        {% if method == "OTP" %}
+                                            Authenticator App
+                                        {% elif method == "PASSWORD" %}
+                                            Password
+                                        {% elif method == "SMS" %}
+                                            SMS
+                                        {% elif method == "EMAIL" %}
+                                            Email
+                                        {% elif method == "WEBAUTHN" %}
+                                            Security Key
+                                        {% else %}
+                                            {{ method|default:"Unknown" }}
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                            {% empty %}
+                            <div class="col-4">
+                                <div class="metric-gauge">
+                                    <div class="gauge-chart">
+                                        <canvas id="mfaGauge1"></canvas>
+                                        <div class="gauge-value">0%</div>
+                                    </div>
+                                    <div class="gauge-label">Authenticator App</div>
+                                </div>
+                            </div>
+                            <div class="col-4">
+                                <div class="metric-gauge">
+                                    <div class="gauge-chart">
+                                        <canvas id="mfaGauge2"></canvas>
+                                        <div class="gauge-value">0%</div>
+                                    </div>
+                                    <div class="gauge-label">SMS</div>
+                                </div>
+                            </div>
+                            <div class="col-4">
+                                <div class="metric-gauge">
+                                    <div class="gauge-chart">
+                                        <canvas id="mfaGauge3"></canvas>
+                                        <div class="gauge-value">0%</div>
+                                    </div>
+                                    <div class="gauge-label">Security Key</div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                            {% endwith %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-6">
+                <div class="content-card">
+                    <div class="card-header">
+                        <h2 class="card-title">App Usage</h2>
+                    </div>
+                    <div class="card-body">
+                        <div class="metric-chart-container">
+                            <canvas id="appUsageChart"></canvas>
+                        </div>
+                        <div class="mt-4">
+                            <h6>Top Applications</h6>
+                            <div class="table-responsive">
+                                <table class="table table-sm">
+                                    <thead>
+                                        <tr>
+                                            <th>Application</th>
+                                            <th>Sessions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for app, count in usage_by_app.items|dictsort:"-1"|slice:":5" %}
+                                        <tr>
+                                            <td>{{ app }}</td>
+                                            <td>{{ count }}</td>
+                                        </tr>
+                                        {% empty %}
+                                        <tr>
+                                            <td colspan="2" class="text-center">No application usage data available</td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Usage Patterns -->
+        <div class="content-card">
+            <div class="card-header">
+                <h2 class="card-title">Usage Patterns</h2>
+            </div>
+            <div class="card-body">
+                <h5>Hourly Activity (Last 7 Days)</h5>
+                <div class="heatmap-container-wrapper">
+                    <div class="heatmap-labels-x">
+                        <div>12 AM</div>
+                        <div>6 AM</div>
+                        <div>12 PM</div>
+                        <div>6 PM</div>
+                        <div>11 PM</div>
+                    </div>
+                    <div class="heatmap-main-content">
+                        <div class="heatmap-labels-y">
+                            <div>Sunday</div>
+                            <div>Monday</div>
+                            <div>Tuesday</div>
+                            <div>Wednesday</div>
+                            <div>Thursday</div>
+                            <div>Friday</div>
+                            <div>Saturday</div>
+                        </div>
+                        <div class="heatmap-container" id="activityHeatmap">
+                            <!-- Heatmap cells will be dynamically generated -->
+                        </div>
+                    </div>
+                </div>
+                <div class="mt-4">
+                    <p>Peak usage hour: <strong id="peak-hour">{{ peak_usage_hour }}:00</strong> (average of 157 logins)</p>
+                    <p>Your organization shows consistent usage patterns with highest activity on weekdays between 9 AM and 11 AM local time. Weekend activity is minimal with occasional access primarily from management roles.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- JavaScript -->
+    <script src="{% static 'rest_framework/js/jquery-3.7.1.min.js' %}"></script>
+    <script src="{% static 'rest_framework/js/bootstrap.min.js' %}"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.7.1/dist/chart.min.js" nonce="{{ nonce }}"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jsvectormap@1.3.3/dist/js/jsvectormap.min.js" nonce="{{ nonce }}"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jsvectormap@1.3.3/dist/maps/world.js" nonce="{{ nonce }}"></script>
+    <script nonce="{{ nonce }}">
+        // Toggle sidebar on mobile
+        document.querySelector('.sidebar-toggle').addEventListener('click', function() {
+            document.querySelector('.sidebar').classList.toggle('show');
+        });
+        
+        // Period filter buttons
+        document.querySelectorAll('.filter-btn[data-period]').forEach(function(button) {
+            button.addEventListener('click', function() {
+                // Remove active class from all buttons
+                document.querySelectorAll('.filter-btn[data-period]').forEach(function(btn) {
+                    btn.classList.remove('active');
+                });
+                
+                // Add active class to clicked button
+                this.classList.add('active');
+                
+                // Here you would update the chart data based on the selected period
+                var period = this.getAttribute('data-period');
+                console.log('Selected time period:', period);
+                
+                // You could implement an AJAX request here to refresh the data
+                // fetchDataForTimePeriod(period);
+            });
+        });
+        
+        // Authentication Activity Chart
+        const authActivityCtx = document.getElementById('authActivityChart').getContext('2d');
+        const authActivityChart = new Chart(authActivityCtx, {
+            type: 'line',
+            data: {
+                labels: {% if auth_activity.dates %}{{ auth_activity.dates|safe }}{% else %}['Feb 1', 'Feb 8', 'Feb 15', 'Feb 22', 'Mar 1', 'Mar 8', 'Mar 15', 'Mar 22']{% endif %},
+                datasets: [
+                    {
+                        label: 'Successful Authentications',
+                        data: {% if auth_activity.success %}{{ auth_activity.success|safe }}{% else %}[423, 456, 498, 523, 489, 532, 498, 510]{% endif %},
+                        borderColor: '#01C853',
+                        backgroundColor: 'rgba(1, 200, 83, 0.1)',
+                        tension: 0.4,
+                        fill: true,
+                        pointBackgroundColor: '#01C853',
+                        pointBorderColor: '#fff',
+                        pointBorderWidth: 2
+                    },
+                    {
+                        label: 'Failed Authentications',
+                        data: {% if auth_activity.failure %}{{ auth_activity.failure|safe }}{% else %}[32, 28, 35, 24, 38, 21, 18, 23]{% endif %},
+                        borderColor: '#FF9800',
+                        backgroundColor: 'rgba(255, 152, 0, 0.1)',
+                        tension: 0.4,
+                        fill: true,
+                        pointBackgroundColor: '#FF9800',
+                        pointBorderColor: '#fff',
+                        pointBorderWidth: 2
+                    },
+                    {
+                        label: 'MFA Events',
+                        data: {% if auth_activity.mfa %}{{ auth_activity.mfa|safe }}{% else %}[312, 356, 378, 402, 389, 432, 398, 423]{% endif %},
+                        borderColor: '#0D6EFD',
+                        backgroundColor: 'rgba(13, 110, 253, 0.1)',
+                        tension: 0.4,
+                        fill: true,
+                        pointBackgroundColor: '#0D6EFD',
+                        pointBorderColor: '#fff',
+                        pointBorderWidth: 2
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'top',
+                    },
+                    tooltip: {
+                        mode: 'index',
+                        intersect: false
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        grid: {
+                            color: 'rgba(0, 0, 0, 0.05)'
+                        }
+                    },
+                    x: {
+                        grid: {
+                            display: false
+                        }
+                    }
+                }
+            }
+        });
+
+        // Device Usage Chart
+        const deviceCtx = document.getElementById('deviceChart').getContext('2d');
+        // Collect the device data from the server
+        const deviceData = {
+            labels: [
+                {% for device, count in usage_by_device.items %}
+                    '{{ device }}',
+                {% empty %}
+                    'Desktop', 'Mobile', 'Tablet', 'API', 'Unknown'
+                {% endfor %}
+            ],
+            data: [
+                {% for device, count in usage_by_device.items %}
+                    {{ count }},
+                {% empty %}
+                    58, 32, 6, 4, 0
+                {% endfor %}
+            ]
+        };
+        
+        // Calculate total device usage
+        const totalDeviceUsage = deviceData.data.reduce((sum, count) => sum + count, 0);
+        
+        // Calculate percentages for each device type
+        const devicePercentages = deviceData.data.map(count => {
+            return totalDeviceUsage > 0 ? Math.round((count / totalDeviceUsage) * 100) : 0;
+        });
+        
+        // Update the percentage displays in the HTML
+        const deviceTypes = ['desktop', 'mobile', 'tablet', 'api', 'unknown'];
+        for (let i = 0; i < deviceTypes.length; i++) {
+            const deviceType = deviceTypes[i];
+            // Find the index of this device type in the labels array (case insensitive)
+            const dataIndex = deviceData.labels.findIndex(label => 
+                label.toLowerCase() === deviceType.charAt(0).toUpperCase() + deviceType.slice(1).toLowerCase());
+            
+            if (dataIndex !== -1) {
+                const percentage = devicePercentages[dataIndex];
+                const element = document.getElementById(`${deviceType}-percentage`);
+                if (element) {
+                    element.textContent = `${percentage}%`;
+                }
+            }
+        }
+        
+        const deviceChart = new Chart(deviceCtx, {
+            type: 'doughnut',
+            data: {
+                labels: deviceData.labels,
+                datasets: [{
+                    data: deviceData.data,
+                    backgroundColor: ['#4B77BE', '#1ABC9C', '#F39C12', '#9B59B6', '#95A5A6'],
+                    borderColor: 'white',
+                    borderWidth: 2
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: false
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                const label = context.label || '';
+                                const value = context.raw || 0;
+                                const percentage = totalDeviceUsage > 0 ? Math.round((value / totalDeviceUsage) * 100) : 0;
+                                return `${label}: ${percentage}% (${value} sessions)`;
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
+        // App Usage Chart
+        const appUsageCtx = document.getElementById('appUsageChart').getContext('2d');
+        // Collect the app usage data from the server
+        const appLabels = [
+            {% for app, count in usage_by_app.items|slice:":7" %}
+                '{{ app }}',
+            {% empty %}
+                'App 1', 'App 2', 'App 3', 'App 4', 'App 5', 'App 6', 'Other'
+            {% endfor %}
+        ];
+        const appData = [
+            {% for app, count in usage_by_app.items|slice:":7" %}
+                {{ count }},
+            {% empty %}
+                0, 0, 0, 0, 0, 0, 0
+            {% endfor %}
+        ];
+        const appUsageChart = new Chart(appUsageCtx, {
+            type: 'bar',
+            data: {
+                labels: appLabels,
+                datasets: [{
+                    label: 'Usage Count',
+                    data: appData,
+                    backgroundColor: '#2ECC71',
+                    borderColor: '#27AE60',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                indexAxis: 'y',
+                plugins: {
+                    legend: {
+                        display: false
+                    }
+                },
+                scales: {
+                    x: {
+                        beginAtZero: true,
+                        grid: {
+                            color: 'rgba(0, 0, 0, 0.05)'
+                        }
+                    },
+                    y: {
+                        grid: {
+                            display: false
+                        }
+                    }
+                }
+            }
+        });
+
+        // Set peak usage hour
+        document.getElementById('peak-hour').textContent = '{{ peak_usage_hour }}:00';
+        
+        // Update success rate and trend indicators with real data
+        const authSuccessRateElement = document.getElementById('auth-success-rate');
+        const authRateTrendElement = document.getElementById('auth-rate-trend');
+        const authRateTrendIconElement = document.getElementById('auth-rate-trend-icon');
+        
+        authSuccessRateElement.textContent = '{{ auth_success_rate }}%';
+        
+        const authRateChange = {{ auth_rate_change }};
+        if (authRateChange > 0) {
+            authRateTrendElement.textContent = '+' + authRateChange + '%';
+            authRateTrendElement.className = 'trend-up';
+            authRateTrendIconElement.className = 'fas fa-arrow-up me-1';
+        } else if (authRateChange < 0) {
+            authRateTrendElement.textContent = authRateChange + '%';
+            authRateTrendElement.className = 'trend-down';
+            authRateTrendIconElement.className = 'fas fa-arrow-down me-1';
+        } else {
+            authRateTrendElement.textContent = authRateChange + '%';
+            authRateTrendElement.className = 'trend-neutral';
+            authRateTrendIconElement.className = 'fas fa-minus me-1';
+        }
+        
+        // Update MFA usage rate and trend indicators with real data
+        const mfaRateElement = document.getElementById('mfa-usage-rate');
+        const mfaRateTrendElement = document.getElementById('mfa-rate-trend');
+        const mfaRateTrendIconElement = document.getElementById('mfa-rate-trend-icon');
+        
+        mfaRateElement.textContent = '{{ mfa_usage_rate }}%';
+        
+        const mfaRateChange = {{ mfa_rate_change }};
+        if (mfaRateChange > 0) {
+            mfaRateTrendElement.textContent = '+' + mfaRateChange + '%';
+            mfaRateTrendElement.className = 'trend-up';
+            mfaRateTrendIconElement.className = 'fas fa-arrow-up me-1';
+        } else if (mfaRateChange < 0) {
+            mfaRateTrendElement.textContent = mfaRateChange + '%';
+            mfaRateTrendElement.className = 'trend-down';
+            mfaRateTrendIconElement.className = 'fas fa-arrow-down me-1';
+        } else {
+            mfaRateTrendElement.textContent = mfaRateChange + '%';
+            mfaRateTrendElement.className = 'trend-neutral';
+            mfaRateTrendIconElement.className = 'fas fa-minus me-1';
+        }
+        
+        // Update session time and trend indicators with real data
+        const sessionTimeElement = document.getElementById('avg-session-time');
+        const sessionTimeTrendElement = document.getElementById('session-time-trend');
+        const sessionTimeTrendIconElement = document.getElementById('session-time-trend-icon');
+        
+        sessionTimeElement.textContent = '{{ avg_session_time }} min';
+        
+        const sessionTimeChange = {{ session_time_change }};
+        if (sessionTimeChange > 0) {
+            sessionTimeTrendElement.textContent = '+' + sessionTimeChange + '%';
+            sessionTimeTrendElement.className = 'trend-up';
+            sessionTimeTrendIconElement.className = 'fas fa-arrow-up me-1';
+        } else if (sessionTimeChange < 0) {
+            sessionTimeTrendElement.textContent = sessionTimeChange + '%';
+            sessionTimeTrendElement.className = 'trend-down';
+            sessionTimeTrendIconElement.className = 'fas fa-arrow-down me-1';
+        } else {
+            sessionTimeTrendElement.textContent = sessionTimeChange + '%';
+            sessionTimeTrendElement.className = 'trend-neutral';
+            sessionTimeTrendIconElement.className = 'fas fa-minus me-1';
+        }
+
+        // Update failed logins and trend indicators with real data
+        const failedLoginsElement = document.getElementById('failed-logins-count');
+        const failedLoginsTrendElement = document.getElementById('failed-logins-trend');
+        const failedLoginsTrendIconElement = document.getElementById('failed-logins-trend-icon');
+        
+        failedLoginsElement.textContent = '{{ failed_logins_count }}';
+        
+        const failedLoginsChange = {{ failed_logins_change }};
+        // For failed logins, a negative change is actually good (fewer failures)
+        if (failedLoginsChange > 0) {
+            failedLoginsTrendElement.textContent = '+' + failedLoginsChange + '%';
+            failedLoginsTrendElement.className = 'trend-down'; // Red for increase in failures
+            failedLoginsTrendIconElement.className = 'fas fa-arrow-up me-1';
+        } else if (failedLoginsChange < 0) {
+            failedLoginsTrendElement.textContent = failedLoginsChange + '%';
+            failedLoginsTrendElement.className = 'trend-up'; // Green for decrease in failures
+            failedLoginsTrendIconElement.className = 'fas fa-arrow-down me-1';
+        } else {
+            failedLoginsTrendElement.textContent = failedLoginsChange + '%';
+            failedLoginsTrendElement.className = 'trend-neutral';
+            failedLoginsTrendIconElement.className = 'fas fa-minus me-1';
+        }
+    </script>
+</body>
+</html>
