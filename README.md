@@ -41,6 +41,10 @@ OKTA_INTROSPECTION_ENDPOINT='https://your-domain.okta.com/oauth2/v1/introspect'
 OKTA_AUTHORIZATION_ORG_URL='https://your-auth-domain.okta.com'
 OKTA_AUTHORIZATION_CLIENT_ID='your-auth-client-id'
 OKTA_AUTHORIZATION_CLIENT_SECRET='your-auth-client-secret'
+```
+
+# Encryption keys
+_private_key.pem_ and _public_key.jwk_ should be placed inside the _/keys/_ directory
 
 # Security options
 CSRF_COOKIE_SECURE=False
