@@ -4,7 +4,7 @@ import django
 import datetime
 
 # Set up Django environment
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'OktaDashboardBackend.settings')
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
 django.setup()
 
 print('========== TESTING MONGODB CONNECTION ==========')
@@ -25,7 +25,7 @@ try:
     print('Cleared mongoengine connection registry')
     
     # Import the DatabaseService class
-    from OktaDashboardBackend.services.database import DatabaseService
+    from config.services.database import DatabaseService
     
     # Reset the DatabaseService singleton
     print('Resetting DatabaseService...')

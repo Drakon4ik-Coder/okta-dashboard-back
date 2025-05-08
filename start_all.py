@@ -17,6 +17,14 @@ import signal
 import argparse
 from datetime import datetime
 
+# Add the current directory to Python's path
+current_dir = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, current_dir)
+# Also add the apps directory explicitly to ensure it's in the path
+apps_dir = os.path.join(current_dir, 'apps')
+if os.path.exists(apps_dir):
+    sys.path.insert(0, apps_dir)
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
@@ -29,7 +37,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Set up Django environment
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'OktaDashboardBackend.settings')
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
 
 try:
     import django

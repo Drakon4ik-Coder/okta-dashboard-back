@@ -3,9 +3,25 @@
 import os
 import sys
 
+
 def main():
     """Run administrative tasks."""
-    os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'OktaDashboardBackend.settings')
+    # Force the settings module to be config.settings, overriding any existing value
+    os.environ["DJANGO_SETTINGS_MODULE"] = 'config.settings'
+    
+    # Add both the root directory and the apps directory to the Python path
+    # This ensures that Python can find modules in both locations during the refactoring
+    project_root = os.path.dirname(os.path.abspath(__file__))
+    apps_dir = os.path.join(project_root, 'apps')
+    
+    # Add the project root to the Python path if it's not already there
+    if project_root not in sys.path:
+        sys.path.insert(0, project_root)
+        
+    # Add the apps directory to the Python path if it's not already there
+    if apps_dir not in sys.path:
+        sys.path.insert(0, apps_dir)
+    
     try:
         from django.core.management import execute_from_command_line
     except ImportError as exc:

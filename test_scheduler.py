@@ -5,7 +5,7 @@ import time
 import logging
 
 # Set up Django environment
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'OktaDashboardBackend.settings')
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
 django.setup()
 
 # Configure logging

@@ -12,7 +12,7 @@ To run the app via Docker, add an .env file with the following structure:
 DJANGO_SECRET_KEY='your-django-secret-key'
 DEBUG=True
 ALLOWED_HOSTS='localhost,127.0.0.1'
-DJANGO_SETTINGS_MODULE='OktaDashboardBackend.settings'
+DJANGO_SETTINGS_MODULE='config.settings'
 
 # MongoDB settings
 MONGO_HOST='mongodb'  # Use 'mongodb' for Docker, 'localhost' for local dev

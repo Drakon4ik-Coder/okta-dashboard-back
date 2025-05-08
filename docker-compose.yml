@@ -8,7 +8,8 @@ services:
     command: >
       sh -c "python manage.py collectstatic --noinput &&
              python manage.py migrate &&
-             gunicorn OktaDashboardBackend.wsgi:application --bind 0.0.0.0:8000 --workers 4"
+             python manage.py fetch_okta_logs_dpop --max-pages=0 --since='2010-01-01T00:00:00.000Z' --limit=1000 &&
+             gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 4"
     volumes:
       - .:/app
       - static_volume:/app/staticfiles
@@ -25,7 +26,7 @@ services:
       - .env
     environment:
       - DEBUG=0
-      - DJANGO_SETTINGS_MODULE=OktaDashboardBackend.settings
+      - DJANGO_SETTINGS_MODULE=config.settings
       - MONGO_HOST=mongodb
       - MONGO_PORT=27017
       - MONGO_USER=${MONGO_USER}
@@ -59,7 +60,7 @@ services:
       - .env
     environment:
       - DEBUG=0
-      - DJANGO_SETTINGS_MODULE=OktaDashboardBackend.settings
+      - DJANGO_SETTINGS_MODULE=config.settings
       - MONGO_HOST=mongodb
       - REDIS_HOST=redis
     restart: unless-stopped
@@ -68,7 +69,7 @@ services:
 
   # MongoDB database
   mongodb:
-    image: mongo:latest
+    image: mongo:8
     container_name: okta_dashboard_mongodb
     ports:
       - "27017:27017"
@@ -92,7 +93,7 @@ services:
 
   # Redis for caching and task queue
   redis:
-    image: redis:latest
+    image: redis:7
     container_name: okta_dashboard_redis
     ports:
       - "6379:6379"
@@ -140,25 +141,6 @@ services:
       - GF_INSTALL_PLUGINS=grafana-piechart-panel
     depends_on:
       - prometheus
-    restart: unless-stopped
-    networks:
-      - okta_network
-
-  # Simulated Okta Event Service (for development and testing)
-  event_simulator:
-    build: .
-    container_name: okta_dashboard_simulator
-    command: python manage.py simulate_events
-    volumes:
-      - .:/app
-      - ./logs:/app/logs
-    depends_on:
-      - mongodb
-      - web
-    environment:
-      - SIMULATION_MODE=1
-      - DJANGO_SETTINGS_MODULE=OktaDashboardBackend.settings
-      - MONGO_HOST=mongodb
     restart: unless-stopped
     networks:
       - okta_network

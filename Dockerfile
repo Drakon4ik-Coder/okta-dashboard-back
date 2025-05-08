@@ -1,4 +1,4 @@
-FROM python:latest
+FROM python:3.10.17-slim
 
 # Set up the app directory
 RUN mkdir /app
