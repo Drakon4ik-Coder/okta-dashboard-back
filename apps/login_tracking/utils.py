@@ -140,46 +140,77 @@ def calculate_total_login_events(days: int = 30) -> int:
 
 
 def compute_avg_okta_login_time_from_mongo(days: int = 1) -> float | None:
-    """Average time (ms) from first authentication event to session start, grouped by rootSessionId."""
+    """Average time (ms) between authentication and session start events."""
     db = DatabaseService().get_collection(settings.MONGODB_SETTINGS['db'], 'okta_logs')
     cutoff = datetime.utcnow() - timedelta(days=days)
+    auth_events = {
+        'user.authentication.auth_via_mfa',
+        'user.authentication.sso',
+        'app.oauth2.authorize.code',
+    }
+    session_event = 'user.session.start'
 
     cursor = db.find({
         'published': {'$gte': cutoff.isoformat() + 'Z'},
-        'eventType': {'$in': [
-            'user.authentication.auth_via_mfa',
-            'user.authentication.sso',
-            'user.session.start'
-        ]}
+        'eventType': {'$in': list(auth_events | {session_event})}
     }, {
         'authenticationContext.rootSessionId': 1,
+        'actor.id': 1,
         'eventType': 1,
-        'published': 1
+        'published': 1,
+        '_published_date': 1,
     }).sort([
         ('authenticationContext.rootSessionId', 1),
+        ('actor.id', 1),
         ('published', 1)
     ])
 
-    sessions = {}
+    def get_group_id(log):
+        sid = log.get('authenticationContext', {}).get('rootSessionId')
+        if sid:
+            return ('session', sid)
+        actor_id = log.get('actor', {}).get('id')
+        if actor_id:
+            return ('actor', actor_id)
+        return None
+
+    def get_timestamp(log):
+        ts_value = log.get('_published_date') or log.get('published')
+        if not ts_value:
+            return None
+        if isinstance(ts_value, datetime):
+            return ts_value
+        if isinstance(ts_value, str):
+            try:
+                return datetime.fromisoformat(ts_value.replace('Z', '+00:00'))
+            except ValueError:
+                return None
+        return None
+
+    pending_auth = {}
+    pending_session = {}
     durations = []
     for log in cursor:
-        sid = log.get('authenticationContext', {}).get('rootSessionId')
+        group_id = get_group_id(log)
         et = log.get('eventType')
-        ts_str = log.get('published')
-        if not sid or not ts_str:
-            continue
-        try:
-            ts = datetime.fromisoformat(ts_str.replace('Z', '+00:00'))
-        except ValueError:
+        ts = get_timestamp(log)
+        if not group_id or not et or not ts:
             continue
 
-        if et in ('user.authentication.auth_via_mfa', 'user.authentication.sso'):
-            if sid not in sessions:
-                sessions[sid] = ts
-        elif et == 'user.session.start' and sid in sessions:
-            delta = (ts - sessions.pop(sid)).total_seconds() * 1000
-            if 0 < delta <= 300_000:
-                durations.append(delta)
+        if et in auth_events:
+            if group_id in pending_session:
+                delta = abs((ts - pending_session.pop(group_id)).total_seconds() * 1000)
+                if 0 < delta <= 300_000:
+                    durations.append(delta)
+            else:
+                pending_auth.setdefault(group_id, ts)
+        elif et == session_event:
+            if group_id in pending_auth:
+                delta = abs((ts - pending_auth.pop(group_id)).total_seconds() * 1000)
+                if 0 < delta <= 300_000:
+                    durations.append(delta)
+            else:
+                pending_session.setdefault(group_id, ts)
 
     return round(sum(durations) / len(durations), 2) if durations else None
 
